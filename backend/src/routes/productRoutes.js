@@ -8,11 +8,19 @@ const router = express.Router();
 
 router.get('/', requireAuth, async (req, res, next) => {
   try {
-    const products = await getProducts({
+    const filters = {
       query: req.query.q,
       category: req.query.category,
       lowStockOnly: req.query.lowStock === 'true',
-    });
+    };
+
+    if (req.user.role !== 'super_admin') {
+      filters.branch = req.user.branch;
+    } else if (req.query.branch) {
+      filters.branch = req.query.branch;
+    }
+
+    const products = await getProducts(filters);
 
     res.json({ products });
   } catch (error) {

@@ -15,7 +15,8 @@ import {
   Wallet,
   Users,
   RotateCcw,
-  Building2
+  Building2,
+  ArrowRightLeft
 } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { getBaseUrl } from '../utils'
@@ -27,29 +28,44 @@ export function Sidebar({
   company,
 }) {
   const navigation = [
-    { path: '/', label: 'Overview', icon: LayoutDashboard },
-    { path: '/pos', label: 'Billing Desk', icon: ShoppingCart },
-    ...(session?.user?.role !== 'admin'
+    ...(session?.user?.role === 'super_admin'
       ? [
-        { path: '/sales-history', label: 'Sales History', icon: Clock },
-        { path: '/customers', label: 'Customers', icon: User },
-        { path: '/returns', label: 'Returns', icon: RotateCcw },
-        { path: '/settlements', label: 'Settlements', icon: Wallet }
-      ]
+          { path: '/super-admin', label: 'Overview', icon: LayoutDashboard },
+          { path: '/super-admin/branches', label: 'Branches', icon: Warehouse },
+          { path: '/super-admin/reports', label: 'Sales Reports', icon: BarChart3 },
+          { path: '/inventory', label: 'Global Inventory', icon: Warehouse },
+          { path: '/super-admin/exchange', label: 'Inventory Exchange', icon: ArrowRightLeft },
+          { path: '/purchases', label: 'Purchases', icon: Receipt },
+          { path: '/super-admin/returns', label: 'Returns', icon: RotateCcw },
+          { path: '/suppliers', label: 'Suppliers', icon: User },
+          { path: '/staff', label: 'Employees', icon: Users },
+        ]
+      : [
+          { path: '/', label: 'Overview', icon: LayoutDashboard },
+        ]),
+    ...(session?.user?.role !== 'admin' && session?.user?.role !== 'super_admin'
+      ? [
+          { path: '/pos', label: 'Billing Desk', icon: ShoppingCart },
+          { path: '/sales-history', label: 'Sales History', icon: Clock },
+          { path: '/customers', label: 'Customers', icon: User },
+          { path: '/returns', label: 'Returns', icon: RotateCcw },
+          { path: '/settlements', label: 'Settlements', icon: Wallet }
+        ]
       : []),
     ...(session?.user?.role === 'admin'
       ? [
-        { path: '/inventory', label: 'Inventory', icon: Warehouse },
-        { path: '/suppliers', label: 'Suppliers', icon: User },
-        { path: '/customers', label: 'Customers', icon: User },
-        { path: '/staff', label: 'Employees', icon: Users },
-        { path: '/purchases', label: 'Purchases', icon: Receipt },
-        { path: '/invoices', label: 'Invoices', icon: Receipt },
-        { path: '/returns', label: 'Returns', icon: RotateCcw },
-        { path: '/payments', label: 'Settlements', icon: Wallet },
-        { path: '/reports', label: 'Sales Reports', icon: BarChart3 },
-        { path: '/company-profile', label: 'Company Profile', icon: Building2 },
-      ]
+          { path: '/pos', label: 'Billing Desk', icon: ShoppingCart },
+          { path: '/inventory', label: 'Inventory', icon: Warehouse },
+          { path: '/suppliers', label: 'Suppliers', icon: User },
+          { path: '/customers', label: 'Customers', icon: User },
+          { path: '/staff', label: 'Employees', icon: Users },
+          { path: '/purchases', label: 'Purchases', icon: Receipt },
+          { path: '/invoices', label: 'Invoices', icon: Receipt },
+          { path: '/returns', label: 'Returns', icon: RotateCcw },
+          { path: '/payments', label: 'Settlements', icon: Wallet },
+          { path: '/reports', label: 'Sales Reports', icon: BarChart3 },
+          { path: '/company-profile', label: 'Company Profile', icon: Building2 },
+        ]
       : []),
   ]
 

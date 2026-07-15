@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 
 const { getUserById } = require('../services/store');
 
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
 
@@ -12,7 +12,7 @@ function requireAuth(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'inventory-demo-secret');
-    const user = getUserById(decoded.id);
+    const user = await getUserById(decoded.id);
 
     if (!user) {
       return res.status(401).json({ message: 'User session is no longer valid.' });

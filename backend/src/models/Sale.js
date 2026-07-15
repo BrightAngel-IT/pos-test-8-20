@@ -45,9 +45,10 @@ const saleSchema = new mongoose.Schema(
     cashier: {
       userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
       name: { type: String, required: true },
-      email: { type: String, required: true },
+      username: { type: String, required: true },
     },
     customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+    branch: { type: String, default: 'Main Branch' },
     notes: { type: String, default: '' },
   },
   {

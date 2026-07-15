@@ -7,13 +7,13 @@ const router = express.Router();
 
 router.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = req.body || {};
+    const { username, password } = req.body || {};
 
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required.' });
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username and password are required.' });
     }
 
-    const session = await loginUser(email, password);
+    const session = await loginUser(username, password);
 
     return res.json(session);
   } catch (error) {

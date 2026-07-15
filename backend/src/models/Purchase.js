@@ -9,6 +9,7 @@ const purchaseSchema = new mongoose.Schema({
     costPrice: { type: Number, required: true }
   }],
   date: { type: Date, default: Date.now },
+  branch: { type: String, default: 'Main Branch' },
   total: Number
 });
 

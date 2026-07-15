@@ -5,11 +5,11 @@ const { getUsers, saveUser, deleteUser } = require('../services/store');
 const router = express.Router();
 
 router.use(requireAuth);
-router.use(requireRole(['admin']));
+router.use(requireRole(['super_admin', 'admin']));
 
 router.get('/', async (req, res, next) => {
   try {
-    const users = await getUsers();
+    const users = await getUsers(req.user);
     res.json(users);
   } catch (error) {
     next(error);
@@ -18,7 +18,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const user = await saveUser(req.body);
+    const user = await saveUser(req.body, req.user);
     res.json(user);
   } catch (error) {
     next(error);

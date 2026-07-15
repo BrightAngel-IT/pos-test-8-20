@@ -19,32 +19,17 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
-    username: '',
+    email: '',
     password: '',
-    role: session.user.role === 'admin' ? 'cashier' : 'cashier',
-    branch: session.user.role === 'admin' ? session.user.branch : 'Main Branch'
+    role: 'cashier',
+    branch: 'Main Branch'
   })
-  const [branches, setBranches] = useState([])
-
-  useEffect(() => {
-    async function fetchBranches() {
-      try {
-        const res = await api.get('/branches', authConfig(session.token))
-        setBranches(res.data || [])
-      } catch (err) {
-        console.error('Failed to load branches', err)
-      }
-    }
-    if (session.user.role === 'super_admin') {
-      fetchBranches()
-    }
-  }, [api, session])
 
   useEffect(() => {
     if (editingStaff) {
       setFormData({
         name: editingStaff.name,
-        username: editingStaff.username || '',
+        email: editingStaff.email || '',
         password: '', // Password is empty for editing unless changed
         role: editingStaff.role || 'cashier',
         branch: editingStaff.branch || 'Main Branch'
@@ -124,16 +109,16 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
               </label>
 
               <label className="field">
-                <span>Username</span>
+                <span>Corporate Email</span>
                 <div className="input-shell">
-                  <User size={18} className="muted" />
+                  <Mail size={18} className="muted" />
                   <input 
                     className="ghost-input" 
-                    type="text" 
-                    value={formData.username} 
-                    onChange={e => setFormData({...formData, username: e.target.value})} 
+                    type="email" 
+                    value={formData.email} 
+                    onChange={e => setFormData({...formData, email: e.target.value})} 
                     required 
-                    placeholder="e.g. julian_a" 
+                    placeholder="julian@brightangel.local" 
                   />
                 </div>
               </label>
@@ -144,25 +129,12 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
                 <span>Branch Location</span>
                 <div className="input-shell">
                   <Building size={18} className="muted" />
-                  {session.user.role === 'super_admin' ? (
-                    <select
-                      className="ghost-input cursor-pointer"
-                      value={formData.branch}
-                      onChange={e => setFormData({ ...formData, branch: e.target.value })}
-                    >
-                      <option value="Main Branch">Main Branch</option>
-                      {branches.map(b => (
-                        b.name !== 'Main Branch' && <option key={b._id} value={b.name}>{b.name}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input 
-                      className="ghost-input" 
-                      value={formData.branch} 
-                      readOnly
-                      disabled
-                    />
-                  )}
+                  <input 
+                    className="ghost-input" 
+                    value={formData.branch} 
+                    onChange={e => setFormData({...formData, branch: e.target.value})} 
+                    placeholder="e.g. Downtown Warehouse" 
+                  />
                 </div>
               </label>
 
@@ -174,12 +146,9 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
                     className="ghost-input cursor-pointer" 
                     value={formData.role} 
                     onChange={e => setFormData({...formData, role: e.target.value})}
-                    disabled={session.user.role === 'admin'}
                   >
                     <option value="cashier">Standard Operative (Cashier)</option>
-                    {session.user.role === 'super_admin' && (
-                      <option value="admin">System Administrator</option>
-                    )}
+                    <option value="admin">System Administrator</option>
                   </select>
                 </div>
               </label>

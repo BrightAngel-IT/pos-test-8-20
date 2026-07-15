@@ -37,6 +37,13 @@ import StaffForm from './pages/admin/StaffForm'
 import { Settlements } from './pages/cashier/Settlements'
 import CompanyProfile from './pages/admin/CompanyProfile'
 
+// Super Admin Pages
+import { SuperAdminDashboard } from './pages/super_admin/Dashboard'
+import { BranchManagement } from './pages/super_admin/Branches'
+import { BranchDetails } from './pages/super_admin/BranchDetails'
+import { SuperAdminReports } from './pages/super_admin/Reports'
+import { InventoryTransfer } from './pages/super_admin/InventoryTransfer'
+import SuperAdminReturns from './pages/super_admin/Returns'
 
 // Utils
 import {
@@ -53,6 +60,12 @@ const api = axios.create({
 })
 
 const demoCredentials = [
+  {
+    label: 'Super Admin Demo',
+    email: 'superadmin@gmail.com',
+    password: 'superadmin123',
+    role: 'Multi-branch operations and consolidated analytics',
+  },
   {
     label: 'Admin Demo',
     email: 'admin@gmail.com',
@@ -106,8 +119,8 @@ function App() {
   const activeView = location.pathname === '/' ? 'overview' : location.pathname.slice(1).replace('/', '-')
 
   const [authForm, setAuthForm] = useState({
-    email: demoCredentials[0].email,
-    password: demoCredentials[0].password,
+    username: '',
+    password: '',
   })
   const [overview, setOverview] = useState(null)
   const [products, setProducts] = useState([])
@@ -506,7 +519,7 @@ function App() {
 
   function handleProductFormChange(event) {
     const { name, value, type, files } = event.target
-    
+
     if (type === 'file' && files?.[0]) {
       setProductForm((current) => ({ ...current, imageFile: files[0] }))
       return
@@ -568,7 +581,7 @@ function App() {
     setBusyAction('product-save')
     try {
       const formData = new FormData();
-      
+
       // Basic fields
       formData.append('name', productForm.name);
       formData.append('sku', productForm.sku);
@@ -581,7 +594,7 @@ function App() {
       formData.append('loyaltyDiscount', productForm.loyaltyDiscount);
       formData.append('quantityInStock', productForm.quantityInStock);
       formData.append('reorderLevel', productForm.reorderLevel);
-      
+
       // Nested rack fields
       formData.append('rack.rowNumber', productForm.rack.rowNumber);
       formData.append('rack.columnNumber', productForm.rack.columnNumber);
@@ -606,7 +619,7 @@ function App() {
       } else {
         await api.post('/products', formData, config);
       }
-      
+
       const freshProducts = await refreshCoreData()
       resetProductEditor(freshProducts)
       setNotice({ type: 'success', text: 'Product saved successfully.' })
@@ -731,7 +744,9 @@ function App() {
         {!pageLoading && (
           <Routes>
             <Route path="/" element={
-              session.user.role === 'admin' ? (
+              session.user.role === 'super_admin' ? (
+                <Navigate to="/super-admin" replace />
+              ) : session.user.role === 'admin' ? (
                 <AdminDashboard
                   overview={overview}
                   session={session}
@@ -768,19 +783,19 @@ function App() {
             } />
 
             <Route path="/sales-history" element={
-              <SalesHistory 
-                api={api} 
-                session={session} 
-                onNotice={setNotice} 
+              <SalesHistory
+                api={api}
+                session={session}
+                onNotice={setNotice}
                 company={company}
               />
             } />
 
             <Route path="/settlements" element={
-              <Settlements 
-                api={api} 
-                session={session} 
-                onNotice={setNotice} 
+              <Settlements
+                api={api}
+                session={session}
+                onNotice={setNotice}
               />
             } />
 
@@ -819,8 +834,19 @@ function App() {
               </AdminRoute>
             } />
 
-            <Route path="/suppliers" element={<AdminRoute session={session}><Suppliers api={api} session={session} onNotice={setNotice} /></AdminRoute>} />
-            <Route path="/customers" element={<Customers api={api} session={session} onNotice={setNotice} />} />
+            <Route path="/super-admin/exchange" element={
+              <AdminRoute session={session}>
+                {session.user.role === 'super_admin' ? (
+                  <InventoryTransfer api={api} session={session} onNotice={setNotice} refreshCoreData={refreshCoreData} />
+                ) : (
+                  <Navigate to="/" replace />
+                )}
+              </AdminRoute>
+            } />
+
+            <Route path="/suppliers" element={<AdminRoute session={session}><Suppliers api={api} session={session} onNotice={setNotice} refreshCoreData={refreshCoreData} /></AdminRoute>} />
+            <Route path="/purchases" element={<AdminRoute session={session}><Purchases api={api} session={session} onNotice={setNotice} refreshCoreData={refreshCoreData} /></AdminRoute>} />
+            <Route path="/customers" element={<Customers api={api} session={session} onNotice={setNotice} refreshCoreData={refreshCoreData} />} />
 
 
             <Route path="/staff" element={
@@ -878,6 +904,33 @@ function App() {
               </AdminRoute>
             } />
 
+            {/* Super Admin Routes */}
+            <Route path="/super-admin" element={
+              <SuperAdminRoute session={session}>
+                <SuperAdminDashboard api={api} session={session} />
+              </SuperAdminRoute>
+            } />
+            <Route path="/super-admin/branches" element={
+              <SuperAdminRoute session={session}>
+                <BranchManagement api={api} session={session} />
+              </SuperAdminRoute>
+            } />
+            <Route path="/super-admin/branches/:branchName" element={
+              <SuperAdminRoute session={session}>
+                <BranchDetails api={api} session={session} />
+              </SuperAdminRoute>
+            } />
+            <Route path="/super-admin/reports" element={
+              <SuperAdminRoute session={session}>
+                <SuperAdminReports api={api} session={session} />
+              </SuperAdminRoute>
+            } />
+            <Route path="/super-admin/returns" element={
+              <SuperAdminRoute session={session}>
+                <SuperAdminReturns api={api} session={session} onNotice={setNotice} refreshCoreData={refreshCoreData} />
+              </SuperAdminRoute>
+            } />
+
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -889,7 +942,13 @@ function App() {
 
 // Helper for conditional admin routes
 const AdminRoute = ({ session, children }) => {
-  if (!session || session.user.role !== 'admin') return <Navigate to="/" replace />
+  if (!session || !['admin', 'super_admin'].includes(session.user.role)) return <Navigate to="/" replace />
+  return children
+}
+
+// Helper for conditional super admin routes
+const SuperAdminRoute = ({ session, children }) => {
+  if (!session || session.user.role !== 'super_admin') return <Navigate to="/" replace />
   return children
 }
 

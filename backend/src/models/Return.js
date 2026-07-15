@@ -19,6 +19,7 @@ const returnSchema = new mongoose.Schema({
   reason: String,
   status: { type: String, enum: ['pending', 'completed', 'cancelled'], default: 'completed' },
   refundMethod: { type: String, enum: ['cash', 'credit-note', 'bank-transfer'], default: 'credit-note' },
+  branch: { type: String, default: 'Main Branch' },
   processedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 

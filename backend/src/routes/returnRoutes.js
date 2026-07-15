@@ -5,7 +5,8 @@ const { createReturn, getReturns } = require('../services/store');
 
 router.get('/', requireAuth, async (req, res, next) => {
   try {
-    const returns = await getReturns(req.query);
+    const branchFilter = req.query.branch || (req.user.role !== 'super_admin' ? req.user.branch : null);
+    const returns = await getReturns({ ...req.query, branch: branchFilter });
     res.json(returns);
   } catch (error) {
     console.error('Return Fetch Error:', error);

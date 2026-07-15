@@ -1,41 +1,23 @@
 const express = require('express');
 const router = express.Router();
-const Purchase = require('../models/Purchase');
-const SupplierInvoice = require('../models/SupplierInvoice');
+const { requireAuth } = require('../middleware/auth');
+const { getPurchases, createPurchase } = require('../services/store');
 
 // CRUD routes for Purchase
-router.get('/', async (req, res) => {
-  const purchases = await Purchase.find().populate('supplier').populate('products.product');
-  res.json(purchases);
+router.get('/', requireAuth, async (req, res) => {
+  try {
+    const branchFilter = req.query.branch || (req.user.role !== 'super_admin' ? req.user.branch : null);
+    const purchases = await getPurchases({ branch: branchFilter });
+    res.json(purchases);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
-    const { supplier, products, total, date } = req.body;
-    
-    // 1. Create Purchase Record
-    const purchase = new Purchase({ supplier, products, total, date });
-    await purchase.save();
-
-    // 2. Update Inventory (Increment quantityInStock)
-    const Product = require('../models/Product');
-    const updatePromises = products.map(item => 
-      Product.findByIdAndUpdate(item.product, {
-        $inc: { quantityInStock: item.quantity }
-      })
-    );
-    await Promise.all(updatePromises);
-
-    // 3. Create Supplier Invoice
-    await SupplierInvoice.create({
-      invoiceNo: `PUR-${Date.now()}`,
-      supplierId: supplier,
-      date: date || new Date(),
-      totalAmount: total,
-      balanceAmount: total,
-      status: 'UNPAID'
-    });
-
+    const branchName = req.user.role === 'super_admin' ? (req.body.branch || 'Main Branch') : (req.user?.branch || 'Main Branch');
+    const purchase = await createPurchase({ ...req.body, branch: branchName });
     res.status(201).json(purchase);
   } catch (err) {
     console.error('Purchase creation error:', err);
@@ -43,14 +25,43 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
-  const purchase = await Purchase.findByIdAndUpdate(req.params.id, req.body, { new: true });
-  res.json(purchase);
+router.put('/:id', requireAuth, async (req, res) => {
+  try {
+    const Purchase = require('../models/Purchase');
+    const { isDatabaseReady } = require('../config/database');
+    if (isDatabaseReady()) {
+      const purchase = await Purchase.findByIdAndUpdate(req.params.id, req.body, { new: true });
+      res.json(purchase);
+    } else {
+      const { memoryStore } = require('../services/store');
+      const index = memoryStore.purchases.findIndex(p => String(p._id) === String(req.params.id));
+      if (index >= 0) {
+        memoryStore.purchases[index] = { ...memoryStore.purchases[index], ...req.body };
+        res.json(memoryStore.purchases[index]);
+      } else {
+        res.status(404).json({ message: 'Purchase not found' });
+      }
+    }
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
-router.delete('/:id', async (req, res) => {
-  await Purchase.findByIdAndDelete(req.params.id);
-  res.json({ success: true });
+router.delete('/:id', requireAuth, async (req, res) => {
+  try {
+    const Purchase = require('../models/Purchase');
+    const { isDatabaseReady } = require('../config/database');
+    if (isDatabaseReady()) {
+      await Purchase.findByIdAndDelete(req.params.id);
+      res.json({ success: true });
+    } else {
+      const { memoryStore } = require('../services/store');
+      memoryStore.purchases = memoryStore.purchases.filter(p => String(p._id) !== String(req.params.id));
+      res.json({ success: true });
+    }
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
 module.exports = router;

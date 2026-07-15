@@ -12,6 +12,10 @@ const SupplierInvoice = require('../models/SupplierInvoice');
 const Customer = require('../models/Customer');
 const Supplier = require('../models/Supplier');
 const Return = require('../models/Return');
+const Branch = require('../models/Branch');
+const BranchStock = require('../models/BranchStock');
+const Purchase = require('../models/Purchase');
+const Transfer = require('../models/Transfer');
 const Company = require('../models/Company');
 
 const memoryStore = {
@@ -20,6 +24,9 @@ const memoryStore = {
   products: [],
   sales: [],
   returns: [],
+  purchases: [],
+  branches: [],
+  branchStocks: [],
   company: {
     name: 'Inventory System',
     tagline: 'Excellence in Management',
@@ -52,7 +59,7 @@ function sanitizeUser(user) {
   return {
     _id: String(user._id),
     name: user.name,
-    email: user.email,
+    username: user.username,
     role: user.role,
     branch: user.branch,
   };
@@ -82,10 +89,10 @@ async function generateInvoiceNumber() {
     }
     const prefix = company.invoicePrefix || 'C-INV-';
     const nextNum = company.nextInvoiceNumber || 1000;
-    
+
     // Increment nextInvoiceNumber in DB
     await Company.updateOne({}, { $inc: { nextInvoiceNumber: 1 } });
-    
+
     return `${prefix}${nextNum}`;
   } else {
     const prefix = memoryStore.company.invoicePrefix || 'C-INV-';
@@ -138,7 +145,7 @@ async function prepareSeedUsers() {
     prepared.push({
       _id: generateId(),
       name: user.name,
-      email: user.email.toLowerCase(),
+      username: user.username.toLowerCase(),
       passwordHash: await bcrypt.hash(user.password, 10),
       role: user.role,
       branch: user.branch,
@@ -174,6 +181,58 @@ async function seedMemoryStore() {
   memoryStore.users = users;
   memoryStore.products = products;
   memoryStore.sales = sales;
+
+  // Initialize branches
+  memoryStore.branches = [
+    {
+      _id: generateId(),
+      name: 'Main Warehouse',
+      location: 'Colombo 06',
+      phone: '+94 11 234 5678',
+      email: 'main@inventory.com',
+      manager: 'Store Admin',
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      _id: generateId(),
+      name: 'Counter 01',
+      location: 'Colombo 06',
+      phone: '+94 11 234 5679',
+      email: 'counter01@inventory.com',
+      manager: 'Front Cashier',
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+  ];
+
+  // Initialize branch stocks
+  memoryStore.branchStocks = [];
+  products.forEach(p => {
+    memoryStore.branchStocks.push({
+      _id: generateId(),
+      branch: 'Main Warehouse',
+      productId: String(p._id),
+      quantityInStock: Number(p.quantityInStock),
+      reorderLevel: Number(p.reorderLevel),
+      rack: p.rack,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    memoryStore.branchStocks.push({
+      _id: generateId(),
+      branch: 'Counter 01',
+      productId: String(p._id),
+      quantityInStock: Math.max(0, Math.floor(Number(p.quantityInStock) / 2)),
+      reorderLevel: Number(p.reorderLevel),
+      rack: p.rack,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  });
+
   memoryStore.ready = true;
 }
 
@@ -199,6 +258,54 @@ async function seedDatabase() {
     const sales = buildDemoSales(products, users);
     await Sale.insertMany(sales);
   }
+
+  const branchCount = await Branch.countDocuments();
+  if (branchCount === 0) {
+    const branches = [
+      {
+        name: 'Main Warehouse',
+        location: 'Colombo 06',
+        phone: '+94 11 234 5678',
+        email: 'main@inventory.com',
+        manager: 'Store Admin',
+        status: 'active',
+      },
+      {
+        name: 'Counter 01',
+        location: 'Colombo 06',
+        phone: '+94 11 234 5679',
+        email: 'counter01@inventory.com',
+        manager: 'Front Cashier',
+        status: 'active',
+      }
+    ];
+    await Branch.insertMany(branches);
+  }
+
+  const branchStockCount = await BranchStock.countDocuments();
+  if (branchStockCount === 0) {
+    const allProducts = await Product.find().lean();
+    const branchStocks = [];
+    allProducts.forEach(p => {
+      branchStocks.push({
+        branch: 'Main Warehouse',
+        productId: p._id,
+        quantityInStock: p.quantityInStock,
+        reorderLevel: p.reorderLevel,
+        rack: p.rack,
+      });
+      branchStocks.push({
+        branch: 'Counter 01',
+        productId: p._id,
+        quantityInStock: Math.max(0, Math.floor(p.quantityInStock / 2)),
+        reorderLevel: p.reorderLevel,
+        rack: p.rack,
+      });
+    });
+    if (branchStocks.length > 0) {
+      await BranchStock.insertMany(branchStocks);
+    }
+  }
 }
 
 async function initializeStore() {
@@ -216,25 +323,25 @@ function signToken(user) {
     {
       id: user._id,
       role: user.role,
-      email: user.email,
+      username: user.username,
     },
     process.env.JWT_SECRET || 'inventory-demo-secret',
     { expiresIn: '12h' },
   );
 }
 
-async function loginUser(email, password) {
-  const normalizedEmail = String(email || '').trim().toLowerCase();
-  const user = await findUserByEmail(normalizedEmail);
+async function loginUser(username, password) {
+  const normalizedUsername = String(username || '').trim().toLowerCase();
+  const user = await findUserByUsername(normalizedUsername);
 
   if (!user) {
-    throw createError('Invalid email or password.', 401);
+    throw createError('Invalid username or password.', 401);
   }
 
   const validPassword = await bcrypt.compare(password, user.passwordHash);
 
   if (!validPassword) {
-    throw createError('Invalid email or password.', 401);
+    throw createError('Invalid username or password.', 401);
   }
 
   const sanitizedUser = sanitizeUser(user);
@@ -245,15 +352,23 @@ async function loginUser(email, password) {
   };
 }
 
-async function findUserByEmail(email) {
+async function findUserByUsername(username) {
   if (isDatabaseReady()) {
-    return User.findOne({ email }).lean();
+    return User.findOne({ username }).lean();
   }
 
-  return memoryStore.users.find((user) => user.email === email) || null;
+  return memoryStore.users.find((user) => user.username === username) || null;
 }
 
-function getUserById(id) {
+async function getUserById(id) {
+  if (isDatabaseReady()) {
+    try {
+      const user = await User.findById(id).lean();
+      return user ? sanitizeUser(user) : null;
+    } catch (err) {
+      return null; // invalid ID format or error
+    }
+  }
   const user = memoryStore.users.find((item) => String(item._id) === String(id));
   return user ? sanitizeUser(user) : null;
 }
@@ -283,7 +398,7 @@ async function getAllProducts() {
 async function getAllSales() {
   if (isDatabaseReady()) {
     const sales = await Sale.find().sort({ createdAt: -1 }).lean();
-    
+
     // Fetch related invoices to get actual balances
     const invoiceNos = sales.map(s => s.invoiceNumber);
     const invoices = await CustomerInvoice.find({ invoiceNo: { $in: invoiceNos } }).lean();
@@ -311,13 +426,77 @@ async function getAllSales() {
 
 async function getProducts(filters = {}) {
   const products = await getAllProducts();
+  const branchName = filters.branch;
+
+  let branchStocks = [];
+  if (isDatabaseReady()) {
+    if (branchName) {
+      const normalizedBranch = String(branchName).toLowerCase();
+      const isMain = ['main branch', 'main warehouse', 'main'].includes(normalizedBranch);
+      const branchQuery = isMain
+        ? { branch: { $regex: /^(main branch|main warehouse|main)$/i } }
+        : { branch: branchName };
+      branchStocks = await BranchStock.find(branchQuery).lean();
+    } else {
+      branchStocks = await BranchStock.find().lean();
+    }
+  } else {
+    if (branchName) {
+      const normalizedBranch = String(branchName).toLowerCase();
+      const isMain = ['main branch', 'main warehouse', 'main'].includes(normalizedBranch);
+      if (isMain) {
+        branchStocks = memoryStore.branchStocks.filter(bs => {
+          const bsNorm = String(bs.branch).toLowerCase();
+          return ['main branch', 'main warehouse', 'main'].includes(bsNorm);
+        });
+      } else {
+        branchStocks = memoryStore.branchStocks.filter(bs => bs.branch === branchName);
+      }
+    } else {
+      branchStocks = memoryStore.branchStocks;
+    }
+  }
+
+  const stockMap = new Map();
+  branchStocks.forEach(bs => {
+    const prodId = String(bs.productId);
+    if (!stockMap.has(prodId)) {
+      stockMap.set(prodId, { quantityInStock: 0, reorderLevel: bs.reorderLevel, rack: bs.rack, count: 0 });
+    }
+    const entry = stockMap.get(prodId);
+    if (branchName) {
+      entry.quantityInStock += Number(bs.quantityInStock);
+      entry.reorderLevel = bs.reorderLevel;
+      entry.rack = bs.rack;
+    } else {
+      entry.quantityInStock += Number(bs.quantityInStock);
+      if (entry.count === 0) {
+        entry.reorderLevel = bs.reorderLevel;
+        entry.rack = bs.rack;
+      }
+      entry.count++;
+    }
+  });
 
   return products
+    .map((product) => {
+      const stock = stockMap.get(String(product._id));
+      const finalQuantity = stock ? stock.quantityInStock : 0;
+      const finalReorder = stock ? stock.reorderLevel : product.reorderLevel;
+      const finalRack = stock ? stock.rack : product.rack;
+      return {
+        ...product,
+        quantityInStock: finalQuantity,
+        reorderLevel: finalReorder,
+        rack: finalRack,
+        rackLabel: getRackLabel(finalRack),
+      };
+    })
     .filter((product) => {
       const matchesQuery = filters.query
         ? `${product.name} ${product.sku} ${product.barcode}`
-            .toLowerCase()
-            .includes(String(filters.query).toLowerCase())
+          .toLowerCase()
+          .includes(String(filters.query).toLowerCase())
         : true;
       const matchesCategory = filters.category
         ? product.category.toLowerCase() === String(filters.category).toLowerCase()
@@ -327,11 +506,7 @@ async function getProducts(filters = {}) {
         : true;
 
       return matchesQuery && matchesCategory && matchesStock;
-    })
-    .map((product) => ({
-      ...product,
-      rackLabel: getRackLabel(product.rack),
-    }));
+    });
 }
 
 async function saveProduct(payload) {
@@ -368,8 +543,9 @@ async function saveProduct(payload) {
   }
 
   if (isDatabaseReady()) {
+    let product;
     if (payload._id) {
-      const product = await Product.findByIdAndUpdate(payload._id, productData, {
+      product = await Product.findByIdAndUpdate(payload._id, productData, {
         new: true,
         runValidators: true,
       }).lean();
@@ -377,21 +553,65 @@ async function saveProduct(payload) {
       if (!product) {
         throw createError('Product not found.', 404);
       }
-
-      return { ...product, _id: String(product._id), rackLabel: getRackLabel(product.rack) };
+    } else {
+      product = await Product.create(productData);
+      product = product.toObject();
     }
 
-    const product = await Product.create(productData);
-    const plainProduct = product.toObject();
+    const branchName = payload.branch;
+    if (branchName) {
+      await BranchStock.findOneAndUpdate(
+        { branch: branchName, productId: product._id },
+        {
+          quantityInStock: Number(payload.quantityInStock || 0),
+          reorderLevel: Number(payload.reorderLevel || 0),
+          rack: productData.rack
+        },
+        { upsert: true, new: true }
+      );
+    }
+
+    if (!payload._id) {
+      const branches = await Branch.find().lean();
+      for (const b of branches) {
+        if (b.name !== branchName) {
+          await BranchStock.create({
+            branch: b.name,
+            productId: product._id,
+            quantityInStock: 0,
+            reorderLevel: productData.reorderLevel,
+            rack: productData.rack,
+          });
+        }
+      }
+    }
+
+    let finalQty = product.quantityInStock;
+    let finalReorder = product.reorderLevel;
+    let finalRack = product.rack;
+
+    if (branchName) {
+      const bs = await BranchStock.findOne({ branch: branchName, productId: product._id }).lean();
+      if (bs) {
+        finalQty = bs.quantityInStock;
+        finalReorder = bs.reorderLevel;
+        finalRack = bs.rack;
+      }
+    }
+
     return {
-      ...plainProduct,
-      _id: String(plainProduct._id),
-      rackLabel: getRackLabel(plainProduct.rack),
+      ...product,
+      _id: String(product._id),
+      quantityInStock: finalQty,
+      reorderLevel: finalReorder,
+      rack: finalRack,
+      rackLabel: getRackLabel(finalRack)
     };
   }
 
+  let product;
   if (payload._id) {
-    const index = memoryStore.products.findIndex((product) => String(product._id) === String(payload._id));
+    const index = memoryStore.products.findIndex((p) => String(p._id) === String(payload._id));
     if (index < 0) {
       throw createError('Product not found.', 404);
     }
@@ -401,25 +621,68 @@ async function saveProduct(payload) {
       ...productData,
       updatedAt: new Date().toISOString(),
     };
-
-    return {
-      ...clonePlain(memoryStore.products[index]),
-      rackLabel: getRackLabel(memoryStore.products[index].rack),
+    product = memoryStore.products[index];
+  } else {
+    product = {
+      _id: generateId(),
+      ...productData,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
+    memoryStore.products.push(product);
+
+    memoryStore.branches.forEach(b => {
+      if (b.name !== payload.branch) {
+        memoryStore.branchStocks.push({
+          _id: generateId(),
+          branch: b.name,
+          productId: String(product._id),
+          quantityInStock: 0,
+          reorderLevel: product.reorderLevel,
+          rack: product.rack,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    });
   }
 
-  const newProduct = {
-    _id: generateId(),
-    ...productData,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  if (payload.branch) {
+    let bs = memoryStore.branchStocks.find(b => b.branch === payload.branch && String(b.productId) === String(product._id));
+    if (!bs) {
+      bs = {
+        _id: generateId(),
+        branch: payload.branch,
+        productId: String(product._id),
+        createdAt: new Date().toISOString(),
+      };
+      memoryStore.branchStocks.push(bs);
+    }
+    bs.quantityInStock = Number(payload.quantityInStock || 0);
+    bs.reorderLevel = Number(payload.reorderLevel || 0);
+    bs.rack = productData.rack;
+    bs.updatedAt = new Date().toISOString();
+  }
 
-  memoryStore.products.push(newProduct);
+  let finalQty = product.quantityInStock;
+  let finalReorder = product.reorderLevel;
+  let finalRack = product.rack;
+
+  if (payload.branch) {
+    const bs = memoryStore.branchStocks.find(b => b.branch === payload.branch && String(b.productId) === String(product._id));
+    if (bs) {
+      finalQty = bs.quantityInStock;
+      finalReorder = bs.reorderLevel;
+      finalRack = bs.rack;
+    }
+  }
 
   return {
-    ...clonePlain(newProduct),
-    rackLabel: getRackLabel(newProduct.rack),
+    ...clonePlain(product),
+    quantityInStock: finalQty,
+    reorderLevel: finalReorder,
+    rack: finalRack,
+    rackLabel: getRackLabel(finalRack),
   };
 }
 
@@ -429,6 +692,7 @@ async function deleteProduct(productId) {
     if (!product) {
       throw createError('Product not found.', 404);
     }
+    await BranchStock.deleteMany({ productId });
     return { success: true };
   }
 
@@ -438,6 +702,7 @@ async function deleteProduct(productId) {
   }
 
   memoryStore.products.splice(index, 1);
+  memoryStore.branchStocks = memoryStore.branchStocks.filter((bs) => String(bs.productId) !== String(productId));
   return { success: true };
 }
 
@@ -448,7 +713,8 @@ async function createSale(payload) {
     throw createError('Add at least one item before checking out.');
   }
 
-  const products = await getAllProducts();
+  const branchName = payload.cashier?.branch || 'Main Branch';
+  const products = await getProducts({ branch: branchName });
   const productMap = new Map(products.map((product) => [String(product._id), product]));
 
   const saleItems = items.map((item) => {
@@ -471,10 +737,10 @@ async function createSale(payload) {
     const isLoyalty = !!payload.loyaltyCard;
     const regularPrice = Number(product.price || 0);
     const memberPriceInDb = Number(product.loyaltyDiscount || regularPrice);
-    
+
     // POS Page Logic: Loyalty Price is the value in DB (interpreted as member price)
-    const effectivePrice = isLoyalty 
-      ? Math.max(0, Math.min(regularPrice, memberPriceInDb)) 
+    const effectivePrice = isLoyalty
+      ? Math.max(0, Math.min(regularPrice, memberPriceInDb))
       : regularPrice;
 
     const lineTotal = formatCurrencyAmount(effectivePrice * quantity);
@@ -515,10 +781,11 @@ async function createSale(payload) {
     total,
     customerId: payload.customerId || undefined, // Optional customer link
     items: saleItems,
+    branch: branchName,
     cashier: {
       userId: payload.cashier._id,
       name: payload.cashier.name,
-      email: payload.cashier.email,
+      username: payload.cashier.username,
     },
     notes: String(payload.notes || '').trim(),
   };
@@ -527,9 +794,10 @@ async function createSale(payload) {
     const sale = await Sale.create(salePayload);
 
     for (const item of saleItems) {
-      await Product.findByIdAndUpdate(item.productId, {
-        $inc: { quantityInStock: -item.quantity },
-      });
+      await BranchStock.findOneAndUpdate(
+        { branch: branchName, productId: item.productId },
+        { $inc: { quantityInStock: -item.quantity } }
+      );
     }
 
     // Create Invoice if Credit or has Credit component in split
@@ -566,9 +834,11 @@ async function createSale(payload) {
   }
 
   saleItems.forEach((item) => {
-    const product = memoryStore.products.find((entry) => String(entry._id) === String(item.productId));
-    product.quantityInStock -= item.quantity;
-    product.updatedAt = new Date().toISOString();
+    let bs = memoryStore.branchStocks.find((entry) => entry.branch === branchName && String(entry.productId) === String(item.productId));
+    if (bs) {
+      bs.quantityInStock -= item.quantity;
+      bs.updatedAt = new Date().toISOString();
+    }
   });
 
   const sale = {
@@ -584,21 +854,41 @@ async function createSale(payload) {
 }
 
 async function createReturn(payload) {
-  const { type, entityId, referenceNo, items, refundMethod, reason, processedBy } = payload;
+  const { type, entityId, referenceNo, items, refundMethod, reason, processedBy, branch } = payload;
 
   if (!items || items.length === 0) {
     throw createError('At least one item must be returned.');
   }
 
+  const user = await getUserById(processedBy);
+  const branchName = branch || user?.branch || 'Main Branch';
+
   // 1. Verify and Process Stock, and calculate item totals
   const processedItems = [];
   for (const item of items) {
-    const product = await Product.findById(item.productId);
+    let product;
+    if (isDatabaseReady()) {
+      product = await Product.findById(item.productId);
+    } else {
+      product = memoryStore.products.find(p => String(p._id) === String(item.productId));
+    }
     if (!product) throw createError(`Product not found: ${item.name}`, 404);
 
-    // If customer return, add back to stock. If supplier return, remove from stock.
     const qtyChange = type === 'customer' ? item.quantity : -item.quantity;
-    await Product.findByIdAndUpdate(item.productId, { $inc: { quantityInStock: qtyChange } });
+
+    if (isDatabaseReady()) {
+      await BranchStock.findOneAndUpdate(
+        { branch: branchName, productId: item.productId },
+        { $inc: { quantityInStock: qtyChange } },
+        { upsert: true }
+      );
+    } else {
+      let bs = memoryStore.branchStocks.find((entry) => entry.branch === branchName && String(entry.productId) === String(item.productId));
+      if (bs) {
+        bs.quantityInStock = Math.max(0, bs.quantityInStock + qtyChange);
+        bs.updatedAt = new Date().toISOString();
+      }
+    }
 
     processedItems.push({
       productId: item.productId,
@@ -615,39 +905,42 @@ async function createReturn(payload) {
   // 3. Update Financials
   if (type === 'customer') {
     if (entityId) {
-      const customer = await Customer.findById(entityId);
-      if (customer && refundMethod === 'credit-note') {
-        await Customer.findByIdAndUpdate(entityId, { $inc: { balance: -totalAmount } });
-        
-        // If there's a specific invoice, try to update it too
-        if (referenceNo) {
-          const inv = await CustomerInvoice.findOne({ invoiceNo: referenceNo, customerId: entityId });
-          if (inv) {
-            const nextBalance = Math.max(0, inv.balanceAmount - totalAmount);
-            const status = nextBalance === 0 ? 'PAID' : 'PARTIAL';
-            await CustomerInvoice.findByIdAndUpdate(inv._id, { 
-              balanceAmount: nextBalance, 
-              status: status 
-            });
+      if (isDatabaseReady()) {
+        const customer = await Customer.findById(entityId);
+        if (customer && refundMethod === 'credit-note') {
+          await Customer.findByIdAndUpdate(entityId, { $inc: { balance: -totalAmount } });
+
+          if (referenceNo) {
+            const inv = await CustomerInvoice.findOne({ invoiceNo: referenceNo, customerId: entityId });
+            if (inv) {
+              const nextBalance = Math.max(0, inv.balanceAmount - totalAmount);
+              const status = nextBalance === 0 ? 'PAID' : 'PARTIAL';
+              await CustomerInvoice.findByIdAndUpdate(inv._id, {
+                balanceAmount: nextBalance,
+                status: status
+              });
+            }
           }
         }
       }
     }
   } else {
     if (entityId) {
-      const supplier = await Supplier.findById(entityId);
-      if (supplier && refundMethod === 'credit-note') {
-        await Supplier.findByIdAndUpdate(entityId, { $inc: { balance: -totalAmount } });
-        
-        if (referenceNo) {
-          const inv = await SupplierInvoice.findOne({ invoiceNo: referenceNo, supplierId: entityId });
-          if (inv) {
-            const nextBalance = Math.max(0, inv.balanceAmount - totalAmount);
-            const status = nextBalance === 0 ? 'PAID' : 'PARTIAL';
-            await SupplierInvoice.findByIdAndUpdate(inv._id, { 
-              balanceAmount: nextBalance, 
-              status: status 
-            });
+      if (isDatabaseReady()) {
+        const supplier = await Supplier.findById(entityId);
+        if (supplier && refundMethod === 'credit-note') {
+          await Supplier.findByIdAndUpdate(entityId, { $inc: { balance: -totalAmount } });
+
+          if (referenceNo) {
+            const inv = await SupplierInvoice.findOne({ invoiceNo: referenceNo, supplierId: entityId });
+            if (inv) {
+              const nextBalance = Math.max(0, inv.balanceAmount - totalAmount);
+              const status = nextBalance === 0 ? 'PAID' : 'PARTIAL';
+              await SupplierInvoice.findByIdAndUpdate(inv._id, {
+                balanceAmount: nextBalance,
+                status: status
+              });
+            }
           }
         }
       }
@@ -666,6 +959,7 @@ async function createReturn(payload) {
     totalAmount,
     reason,
     refundMethod,
+    branch: branchName,
     processedBy
   };
 
@@ -685,15 +979,28 @@ async function createReturn(payload) {
 }
 
 async function getReturns(filters = {}) {
+  const branchFilter = filters.branch;
   if (isDatabaseReady()) {
     const query = {};
     if (filters.type) query.type = filters.type;
     if (filters.entityId) query.entityId = filters.entityId;
-    
+    if (branchFilter) query.branch = branchFilter;
+
     return Return.find(query).sort({ createdAt: -1 }).lean();
   }
 
-  return clonePlain(memoryStore.returns).sort(
+  let list = memoryStore.returns;
+  if (branchFilter) {
+    list = list.filter(r => r.branch === branchFilter);
+  }
+  if (filters.type) {
+    list = list.filter(r => r.type === filters.type);
+  }
+  if (filters.entityId) {
+    list = list.filter(r => String(r.entityId) === String(filters.entityId));
+  }
+
+  return clonePlain(list).sort(
     (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
   );
 }
@@ -801,13 +1108,22 @@ function getRangeStart(range) {
   return new Date(now.getFullYear() - 4, 0, 1);
 }
 
-async function getSalesReport(range = 'weekly') {
+async function getSalesReport(range = 'weekly', branchFilter = null) {
   const sales = await getAllSales();
   const products = await getAllProducts();
   const productSalesMap = new Map();
   const validRange = ['daily', 'weekly', 'monthly', 'annual'].includes(range) ? range : 'weekly';
   const rangeStart = getRangeStart(validRange);
-  const filteredSales = sales.filter((sale) => new Date(sale.createdAt) >= rangeStart);
+  let filteredSales = sales.filter((sale) => new Date(sale.createdAt) >= rangeStart);
+  if (branchFilter) {
+    const isMain = ['main branch', 'main warehouse', 'main'].includes(String(branchFilter).toLowerCase());
+    filteredSales = filteredSales.filter((sale) => {
+      if (isMain) {
+        return ['main branch', 'main warehouse', 'main'].includes(String(sale.branch).toLowerCase());
+      }
+      return sale.branch === branchFilter;
+    });
+  }
   const totalRevenue = formatCurrencyAmount(
     filteredSales.reduce((sum, sale) => sum + Number(sale.total), 0),
   );
@@ -882,23 +1198,27 @@ async function getSalesReport(range = 'weekly') {
       .map(([label, value]) => ({ label, value }))
       .sort((left, right) => right.value - left.value),
     topSellingProducts,
-    recentSales: filteredSales.slice(0, 10).map(sale => ({
+    recentSales: filteredSales.slice(0, 50).map(sale => ({
       ...sale,
       cashierName: sale.cashierName || (sale.cashier?.name) || 'System'
     })),
   };
 }
 
-async function getOverviewData(user) {
+async function getOverviewData(user, branchFilter = null) {
+  const activeBranch = (user && user.role !== 'super_admin') ? user.branch : branchFilter;
+
   let [products, sales, users] = await Promise.all([
-    getAllProducts(),
+    getProducts({ branch: activeBranch }),
     getAllSales(),
     getAllUsersForLookup(),
   ]);
 
-  // Role-based filtering: Cashiers only see their own sales metrics
-  if (user && user.role === 'cashier') {
-    sales = sales.filter(sale => 
+  if (activeBranch) {
+    sales = sales.filter((sale) => sale.branch === activeBranch);
+    users = users.filter((u) => u.branch === activeBranch);
+  } else if (user && user.role === 'cashier') {
+    sales = sales.filter((sale) =>
       String(sale.cashier?.userId || sale.cashierId) === String(user._id)
     );
   }
@@ -1014,69 +1334,38 @@ module.exports = {
   updateCompany,
 };
 
-async function getCompany() {
+
+
+async function getUsers(reqUser) {
+  let allUsers = [];
   if (isDatabaseReady()) {
-    let company = await Company.findOne().lean();
-    if (!company) {
-      // Create default if none exists
-      company = await Company.create(memoryStore.company);
-    }
-    return company;
+    allUsers = await User.find().sort({ name: 1 }).lean();
+  } else {
+    allUsers = memoryStore.users.sort((a, b) => a.name.localeCompare(b.name));
   }
-  return memoryStore.company;
+
+  if (reqUser && reqUser.role === 'admin') {
+    allUsers = allUsers.filter(u => u.branch === reqUser.branch);
+  }
+
+  return allUsers.map((user) => sanitizeUser(user));
 }
 
-
-
-async function updateCompany(payload) {
-  const update = {
-    name: payload.name || 'Inventory System',
-    tagline: payload.tagline || '',
-    address: payload.address || '',
-    phone: payload.phone || '',
-    email: payload.email || '',
-    watermark: payload.watermark || '',
-    loyaltyCardCode: payload.loyaltyCardCode || 'NILMA-2026-DISC295',
-    invoicePrefix: payload.invoicePrefix || 'C-INV-',
-    nextInvoiceNumber: payload.nextInvoiceNumber ? Number(payload.nextInvoiceNumber) : 1000,
-    updatedAt: new Date().toISOString(),
-  };
-
-  if (payload.logo) {
-    update.logo = payload.logo;
-  }
-
-  if (isDatabaseReady()) {
-    const company = await Company.findOneAndUpdate({}, update, {
-      new: true,
-      upsert: true,
-    }).lean();
-    return company;
-  }
-
-  memoryStore.company = { ...memoryStore.company, ...update };
-  return memoryStore.company;
-}
-
-async function getUsers() {
-  if (isDatabaseReady()) {
-    const users = await User.find().sort({ name: 1 }).lean();
-    return users.map((user) => sanitizeUser(user));
-  }
-
-  return memoryStore.users.map((user) => sanitizeUser(user)).sort((a, b) => a.name.localeCompare(b.name));
-}
-
-async function saveUser(payload) {
+async function saveUser(payload, reqUser) {
   const userData = {
     name: String(payload.name || '').trim(),
-    email: String(payload.email || '').trim().toLowerCase(),
-    role: ['admin', 'cashier'].includes(payload.role) ? payload.role : 'cashier',
+    username: String(payload.username || '').trim().toLowerCase(),
+    role: ['super_admin', 'admin', 'cashier'].includes(payload.role) ? payload.role : 'cashier',
     branch: String(payload.branch || 'Main Branch').trim(),
   };
 
-  if (!userData.name || !userData.email) {
-    throw createError('Name and email are required.');
+  if (reqUser && reqUser.role === 'admin') {
+    userData.role = 'cashier';
+    userData.branch = reqUser.branch;
+  }
+
+  if (!userData.name || !userData.username) {
+    throw createError('Name and username are required.');
   }
 
   if (payload.password) {
@@ -1094,6 +1383,7 @@ async function saveUser(payload) {
         throw createError('User not found.', 404);
       }
 
+      memoryStore.users = await User.find().lean();
       return sanitizeUser(user);
     }
 
@@ -1101,12 +1391,13 @@ async function saveUser(payload) {
       throw createError('Password is required for new users.');
     }
 
-    const existing = await User.findOne({ email: userData.email });
+    const existing = await User.findOne({ username: userData.username });
     if (existing) {
-      throw createError('User with this email already exists.');
+      throw createError('User with this username already exists.');
     }
 
     const user = await User.create(userData);
+    memoryStore.users = await User.find().lean();
     return sanitizeUser(user);
   }
 
@@ -1125,9 +1416,9 @@ async function saveUser(payload) {
     return sanitizeUser(memoryStore.users[index]);
   }
 
-  const existing = memoryStore.users.find((u) => u.email === userData.email);
+  const existing = memoryStore.users.find((u) => u.username === userData.username);
   if (existing) {
-    throw createError('User with this email already exists.');
+    throw createError('User with this username already exists.');
   }
 
   if (!payload.password) {
@@ -1152,6 +1443,7 @@ async function deleteUser(userId) {
     if (!user) {
       throw createError('User not found.', 404);
     }
+    memoryStore.users = await User.find().lean();
     return { success: true };
   }
 
@@ -1270,5 +1562,325 @@ module.exports = {
   createReturn,
   getReturns,
   getCompany,
-  updateCompany
+  updateCompany,
+  getBranches,
+  saveBranch,
+  deleteBranch,
+  getPurchases,
+  createPurchase,
+  transferInventory,
+  getTransfers
 };
+
+async function getPurchases(filters = {}) {
+  const branchFilter = filters.branch;
+  if (isDatabaseReady()) {
+    const query = {};
+    if (branchFilter) query.branch = branchFilter;
+    return await Purchase.find(query).populate('supplier').populate('products.product').lean();
+  }
+
+  let list = memoryStore.purchases;
+  if (branchFilter) {
+    list = list.filter(p => p.branch === branchFilter);
+  }
+
+  return list.map(p => {
+    const supplier = memoryStore.users.find(u => String(u._id) === String(p.supplier)) || { name: 'Supplier' };
+    const resolvedProducts = p.products.map(item => {
+      const prod = memoryStore.products.find(pr => String(pr._id) === String(item.product));
+      return {
+        ...item,
+        product: prod,
+      };
+    });
+    return {
+      ...p,
+      supplier,
+      products: resolvedProducts,
+    };
+  });
+}
+
+async function createPurchase(payload) {
+  const { supplier, products, total, date, branch } = payload;
+  const branchName = branch || 'Main Branch';
+
+  const purchaseData = {
+    supplier,
+    products: products.map(item => ({
+      product: item.product,
+      quantity: Number(item.quantity),
+      costPrice: Number(item.costPrice),
+    })),
+    total: Number(total),
+    date: date || new Date(),
+    branch: branchName,
+  };
+
+  if (isDatabaseReady()) {
+    const purchase = new Purchase(purchaseData);
+    await purchase.save();
+
+    const updatePromises = products.map(async (item) => {
+      await BranchStock.findOneAndUpdate(
+        { branch: branchName, productId: item.product },
+        { $inc: { quantityInStock: Number(item.quantity) } },
+        { upsert: true, new: true }
+      );
+    });
+    await Promise.all(updatePromises);
+
+    await SupplierInvoice.create({
+      invoiceNo: `PUR-${Date.now()}`,
+      supplierId: supplier,
+      date: date || new Date(),
+      totalAmount: total,
+      balanceAmount: total,
+      status: 'UNPAID',
+      branch: branchName
+    });
+
+    return purchase.toObject();
+  }
+
+  const newPurchase = {
+    _id: generateId(),
+    ...purchaseData,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  memoryStore.purchases.push(newPurchase);
+
+  products.forEach(item => {
+    let bs = memoryStore.branchStocks.find(entry => entry.branch === branchName && String(entry.productId) === String(item.product));
+    if (!bs) {
+      bs = {
+        _id: generateId(),
+        branch: branchName,
+        productId: String(item.product),
+        quantityInStock: 0,
+        reorderLevel: 0,
+        rack: { rowNumber: 1, columnNumber: 1, shelfNumber: 1 },
+        createdAt: new Date().toISOString(),
+      };
+      memoryStore.branchStocks.push(bs);
+    }
+    bs.quantityInStock += Number(item.quantity);
+    bs.updatedAt = new Date().toISOString();
+  });
+
+  return newPurchase;
+}
+
+async function transferInventory({ sourceBranch, destBranch, products }) {
+  if (isDatabaseReady()) {
+    const updatePromises = products.map(async (item) => {
+      // Check stock first
+      const sourceStock = await BranchStock.findOne({ branch: sourceBranch, productId: item.product });
+      if (!sourceStock || sourceStock.quantityInStock < item.quantity) {
+        throw createError(`Insufficient stock in source branch for product ID ${item.product}.`);
+      }
+
+      // Subtract from source
+      await BranchStock.findOneAndUpdate(
+        { branch: sourceBranch, productId: item.product },
+        { $inc: { quantityInStock: -Number(item.quantity) } }
+      );
+      // Add to destination
+      await BranchStock.findOneAndUpdate(
+        { branch: destBranch, productId: item.product },
+        { $inc: { quantityInStock: Number(item.quantity) } },
+        { upsert: true, new: true }
+      );
+    });
+
+    await Promise.all(updatePromises);
+
+    // Save transfer record
+    await Transfer.create({
+      sourceBranch,
+      destBranch,
+      products
+    });
+
+    return { success: true };
+  } else {
+    // In-memory version
+    products.forEach(item => {
+      let sourceBs = memoryStore.branchStocks.find(entry => entry.branch === sourceBranch && String(entry.productId) === String(item.product));
+      if (!sourceBs || sourceBs.quantityInStock < item.quantity) {
+        throw createError(`Insufficient stock in source branch for product ID ${item.product}.`);
+      }
+      sourceBs.quantityInStock -= Number(item.quantity);
+      sourceBs.updatedAt = new Date().toISOString();
+
+      let destBs = memoryStore.branchStocks.find(entry => entry.branch === destBranch && String(entry.productId) === String(item.product));
+      if (!destBs) {
+        destBs = {
+          _id: generateId(),
+          branch: destBranch,
+          productId: String(item.product),
+          quantityInStock: 0,
+          reorderLevel: 0,
+          rack: { rowNumber: 1, columnNumber: 1, shelfNumber: 1 },
+          createdAt: new Date().toISOString(),
+        };
+        memoryStore.branchStocks.push(destBs);
+      }
+      destBs.quantityInStock += Number(item.quantity);
+      destBs.updatedAt = new Date().toISOString();
+    });
+
+    if (!memoryStore.transfers) memoryStore.transfers = [];
+    memoryStore.transfers.push({
+      _id: generateId(),
+      sourceBranch,
+      destBranch,
+      products,
+      createdAt: new Date().toISOString()
+    });
+
+    return { success: true };
+  }
+}
+
+async function getTransfers() {
+  if (isDatabaseReady()) {
+    const transfers = await Transfer.find().populate('products.product', 'name sku image').sort({ createdAt: -1 }).lean();
+    return transfers;
+  }
+  return (memoryStore.transfers || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+async function getBranches() {
+  if (isDatabaseReady()) {
+    return await Branch.find().sort({ name: 1 }).lean();
+  }
+  return memoryStore.branches;
+}
+
+async function saveBranch(payload) {
+  const branchData = {
+    name: String(payload.name || '').trim(),
+    location: String(payload.location || '').trim(),
+    phone: String(payload.phone || '').trim(),
+    email: String(payload.email || '').trim(),
+    manager: String(payload.manager || '').trim(),
+    status: ['active', 'inactive'].includes(payload.status) ? payload.status : 'active',
+  };
+
+  if (!branchData.name) {
+    throw createError('Branch name is required.');
+  }
+
+  if (isDatabaseReady()) {
+    if (payload._id) {
+      const original = await Branch.findById(payload._id).lean();
+      if (!original) throw createError('Branch not found.', 404);
+
+      const updated = await Branch.findByIdAndUpdate(payload._id, branchData, { new: true }).lean();
+
+      if (original.name !== branchData.name) {
+        await Promise.all([
+          BranchStock.updateMany({ branch: original.name }, { branch: branchData.name }),
+          User.updateMany({ branch: original.name }, { branch: branchData.name }),
+          Sale.updateMany({ branch: original.name }, { branch: branchData.name }),
+          Purchase.updateMany({ branch: original.name }, { branch: branchData.name }),
+          Return.updateMany({ branch: original.name }, { branch: branchData.name }),
+        ]);
+      }
+      return updated;
+    }
+
+    const existing = await Branch.findOne({ name: branchData.name });
+    if (existing) {
+      throw createError('Branch with this name already exists.');
+    }
+
+    const branch = await Branch.create(branchData);
+
+    const products = await Product.find().lean();
+    const branchStocks = products.map(p => ({
+      branch: branchData.name,
+      productId: p._id,
+      quantityInStock: 0,
+      reorderLevel: p.reorderLevel,
+      rack: p.rack,
+    }));
+    if (branchStocks.length > 0) {
+      await BranchStock.insertMany(branchStocks);
+    }
+
+    return branch.toObject();
+  }
+
+  if (payload._id) {
+    const index = memoryStore.branches.findIndex((b) => String(b._id) === String(payload._id));
+    if (index < 0) throw createError('Branch not found.', 404);
+
+    const oldName = memoryStore.branches[index].name;
+    memoryStore.branches[index] = {
+      ...memoryStore.branches[index],
+      ...branchData,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (oldName !== branchData.name) {
+      memoryStore.branchStocks.forEach(bs => { if (bs.branch === oldName) bs.branch = branchData.name; });
+      memoryStore.users.forEach(u => { if (u.branch === oldName) u.branch = branchData.name; });
+      memoryStore.sales.forEach(s => { if (s.branch === oldName) s.branch = branchData.name; });
+      memoryStore.returns.forEach(r => { if (r.branch === oldName) r.branch = branchData.name; });
+    }
+
+    return memoryStore.branches[index];
+  }
+
+  const existing = memoryStore.branches.find(b => b.name === branchData.name);
+  if (existing) throw createError('Branch with this name already exists.');
+
+  const newBranch = {
+    _id: generateId(),
+    ...branchData,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  memoryStore.branches.push(newBranch);
+
+  memoryStore.products.forEach(p => {
+    memoryStore.branchStocks.push({
+      _id: generateId(),
+      branch: newBranch.name,
+      productId: String(p._id),
+      quantityInStock: 0,
+      reorderLevel: Number(p.reorderLevel),
+      rack: p.rack,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  });
+
+  return newBranch;
+}
+
+async function deleteBranch(branchId) {
+  if (isDatabaseReady()) {
+    const branch = await Branch.findById(branchId).lean();
+    if (!branch) throw createError('Branch not found.', 404);
+
+    await Branch.findByIdAndDelete(branchId);
+    await BranchStock.deleteMany({ branch: branch.name });
+    return { success: true };
+  }
+
+  const index = memoryStore.branches.findIndex(b => String(b._id) === String(branchId));
+  if (index < 0) throw createError('Branch not found.', 404);
+
+  const branchName = memoryStore.branches[index].name;
+  memoryStore.branches.splice(index, 1);
+  memoryStore.branchStocks = memoryStore.branchStocks.filter(bs => bs.branch !== branchName);
+
+  return { success: true };
+}

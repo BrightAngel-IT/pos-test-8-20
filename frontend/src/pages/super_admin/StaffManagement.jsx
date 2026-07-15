@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import {
   Users,
-  User,
   Plus,
   Search,
   Mail,
@@ -72,7 +71,7 @@ export default function StaffManagement({ api, session, onNotice, setEditingStaf
   }
   const filtered = staff.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.username.toLowerCase().includes(search.toLowerCase())
+      s.email.toLowerCase().includes(search.toLowerCase())
     const matchesRole = roleFilter === 'all' || s.role === roleFilter
     return matchesSearch && matchesRole
   })
@@ -127,7 +126,7 @@ export default function StaffManagement({ api, session, onNotice, setEditingStaf
             <Search size={18} className="muted" />
             <input
               className="ghost-input"
-              placeholder="Search by name, identity, or username..."
+              placeholder="Search by name, identity, or email..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -189,7 +188,7 @@ export default function StaffManagement({ api, session, onNotice, setEditingStaf
                         {member._id === session.user._id && <span className="pill x-small success ml-2 font-bold uppercase tracking-tighter">Current User</span>}
                       </strong>
                       <span className="muted x-small font-mono cluster gap-1 mt-1">
-                        <User size={10} /> {member.username}
+                        <Mail size={10} /> {member.email}
                       </span>
                     </div>
                   </div>

@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react'
-import { 
-  Truck, 
-  Plus, 
-  Search, 
-  Calendar, 
-  DollarSign, 
-  X, 
-  Trash2, 
+import {
+  Truck,
+  Plus,
+  Search,
+  Calendar,
+  DollarSign,
+  X,
+  Trash2,
   ShoppingBag,
   FileText,
   Boxes,
@@ -28,11 +28,11 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const itemsPerPage = 10
-  
+
   const [formData, setFormData] = useState({
     supplier: '',
-    branch: '',
-    items: [], // { productId, unit, piecesPerUnit, quantity, costPrice }
+    branch: 'Main Branch',
+    items: [], // { productId, quantity, costPrice }
     total: 0
   })
 
@@ -47,12 +47,12 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
         api.get('/purchases', authConfig(session.token)),
         api.get('/suppliers', authConfig(session.token)),
         api.get('/products', authConfig(session.token)),
-        session.user.role === 'super_admin' ? api.get('/branches', authConfig(session.token)) : Promise.resolve({ data: [] })
+        api.get('/branches', authConfig(session.token))
       ])
       setPurchases(pRes.data)
       setSuppliers(sRes.data)
       setProducts(prRes.data.products || [])
-      setBranches(bRes.data)
+      setBranches(bRes.data || [])
     } catch (err) {
       onNotice({ type: 'error', text: 'Failed to sync purchase records.' })
     } finally {
@@ -63,7 +63,7 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
   function addItem() {
     setFormData({
       ...formData,
-      items: [...formData.items, { productId: '', unit: 'pcs', piecesPerUnit: 1, quantity: 1, costPrice: '' }]
+      items: [...formData.items, { productId: '', unit: 'pcs', piecesPerUnit: 1, quantity: 1, costPrice: 0 }]
     })
   }
 
@@ -76,9 +76,9 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
   function updateItem(index, field, value) {
     const newItems = [...formData.items]
     newItems[index][field] = value
-    
+
     // Auto-set piecesPerUnit to 1 if unit is not a bulk unit
-    if (field === 'unit' && !['box', 'case', 'pack', 'dozen', 'bundle', 'roll', 'set'].includes(value)) {
+    if (field === 'unit' && !['box', 'carton', 'bag', 'case', 'pack', 'dozen', 'bundle', 'roll', 'set'].includes(value)) {
       newItems[index].piecesPerUnit = 1
     }
 
@@ -89,27 +89,25 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
   async function handleSubmit(e) {
     e.preventDefault()
     if (formData.items.length === 0) return onNotice({ type: 'error', text: 'Add at least one item.' })
-    if (session.user.role === 'super_admin' && !formData.branch) return onNotice({ type: 'error', text: 'Please select a destination branch.' })
-    
     try {
       const formattedProducts = formData.items.map(i => {
         const totalPieces = Number(i.quantity) * Number(i.piecesPerUnit || 1)
         const costPerPiece = Number(i.costPrice) / Number(i.piecesPerUnit || 1)
-        return { 
-          product: i.productId, 
-          quantity: totalPieces, 
-          costPrice: costPerPiece 
+        return {
+          product: i.productId,
+          quantity: totalPieces,
+          costPrice: costPerPiece
         }
       })
 
       await api.post('/purchases', {
         supplier: formData.supplier,
-        branch: session.user.role === 'super_admin' ? formData.branch : session.user.branch,
+        branch: formData.branch,
         products: formattedProducts,
         total: formData.total,
         date: new Date()
       }, authConfig(session.token))
-      
+
       onNotice({ type: 'success', text: 'Purchase order processed. Supplier invoice generated.' })
       setShowForm(false)
       setFormData({ supplier: '', items: [], total: 0 })
@@ -152,9 +150,9 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
           <div className="icon-btn" style={{ background: 'var(--accent-soft)', color: 'var(--accent)', border: 'none' }}>
             <Truck size={24} />
           </div>
-          <SectionHeading 
-            title="Procurement Log" 
-            text="Track incoming stock and supplier liabilities." 
+          <SectionHeading
+            title="Procurement Log"
+            text="Track incoming stock and supplier liabilities."
           />
         </div>
         <button className="btn btn-primary glow-on-hover" onClick={() => setShowForm(true)}>
@@ -219,25 +217,22 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
           </button>
           <form onSubmit={handleSubmit} className="stack gap-6">
             <h3 className="accent-text">New Procurement Order</h3>
-            
-            <div className="grid-2 gap-4">
-              <label className="field">
+
+            <div className="cluster gap-4">
+              <label className="field" style={{ flex: 1 }}>
                 <span>Select Supplier</span>
-                <select className="input" value={formData.supplier} onChange={e => setFormData({...formData, supplier: e.target.value})} required>
+                <select className="input" value={formData.supplier} onChange={e => setFormData({ ...formData, supplier: e.target.value })} required>
                   <option value="">-- Select Partner --</option>
                   {suppliers.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
                 </select>
               </label>
 
-              {session.user.role === 'super_admin' && (
-                <label className="field">
-                  <span>Destination Branch</span>
-                  <select className="input" value={formData.branch} onChange={e => setFormData({ ...formData, branch: e.target.value })} required>
-                    <option value="">-- Assign to Branch --</option>
-                    {branches.map(b => <option key={b._id} value={b.name}>{b.name}</option>)}
-                  </select>
-                </label>
-              )}
+              <label className="field" style={{ flex: 1 }}>
+                <span>Target Branch</span>
+                <select className="input" value={formData.branch} onChange={e => setFormData({ ...formData, branch: e.target.value })} required>
+                  {branches.map(b => <option key={b._id} value={b.name}>{b.name}</option>)}
+                </select>
+              </label>
             </div>
 
             <div className="stack gap-4">
@@ -247,85 +242,86 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
                   <Plus size={14} /> Add Line
                 </button>
               </div>
-              
+
               <div className="stack gap-2">
                 {formData.items.map((item, idx) => {
                   const isBulk = ['box', 'carton', 'bag', 'case', 'pack', 'dozen', 'bundle', 'roll', 'set'].includes(item.unit)
-                  
+
                   return (
-                  <div key={idx} className="cluster gap-3 panel-strong p-3 wrap-row" style={{ borderRadius: '12px', border: '1px solid var(--border)' }}>
-                    <select 
-                      className="input flex-1" 
-                      style={{ minWidth: '200px' }}
-                      value={item.productId} 
-                      onChange={e => updateItem(idx, 'productId', e.target.value)}
-                      required
-                    >
-                      <option value="">-- Product --</option>
-                      {products.map(p => <option key={p._id} value={p._id}>{p.name} ({p.sku})</option>)}
-                    </select>
+                    <div key={idx} className="cluster gap-3 panel-strong p-3 wrap-row" style={{ borderRadius: '12px', border: '1px solid var(--border)' }}>
+                      <select
+                        className="input flex-1"
+                        style={{ minWidth: '200px' }}
+                        value={item.productId}
+                        onChange={e => updateItem(idx, 'productId', e.target.value)}
+                        required
+                      >
+                        <option value="">-- Product --</option>
+                        {products.map(p => <option key={p._id} value={p._id}>{p.name} ({p.sku})</option>)}
+                      </select>
 
-                    <select 
-                      className="input" 
-                      style={{ width: '120px' }} 
-                      value={item.unit} 
-                      onChange={e => updateItem(idx, 'unit', e.target.value)}
-                    >
-                      <option value="pcs">Pieces</option>
-                      <option value="box">Box</option>
-                      <option value="carton">Carton</option>
-                      <option value="bag">Bag</option>
-                      <option value="pack">Pack</option>
-                      <option value="case">Case</option>
-                      <option value="dozen">Dozen</option>
-                      <option value="bundle">Bundle</option>
-                      <option value="roll">Roll</option>
-                      <option value="set">Set</option>
-                      <option value="kg">KG</option>
-                      <option value="ltr">Liter</option>
-                    </select>
+                      <select
+                        className="input"
+                        style={{ width: '120px' }}
+                        value={item.unit}
+                        onChange={e => updateItem(idx, 'unit', e.target.value)}
+                      >
+                        <option value="pcs">Pieces</option>
+                        <option value="box">Box</option>
+                        <option value="carton">Carton</option>
+                        <option value="bag">Bag</option>
+                        <option value="pack">Pack</option>
+                        <option value="case">Case</option>
+                        <option value="dozen">Dozen</option>
+                        <option value="bundle">Bundle</option>
+                        <option value="roll">Roll</option>
+                        <option value="set">Set</option>
+                        <option value="kg">KG</option>
+                        <option value="ltr">Liter</option>
+                      </select>
 
-                    <input 
-                      className="input" 
-                      type="number" 
-                      style={{ width: '90px' }} 
-                      placeholder="Qty" 
-                      value={item.quantity} 
-                      onChange={e => updateItem(idx, 'quantity', Number(e.target.value))}
-                      required 
-                      min="1"
-                    />
+                      <input
+                        className="input"
+                        type="number"
+                        style={{ width: '90px' }}
+                        placeholder="Qty"
+                        value={item.quantity}
+                        onChange={e => updateItem(idx, 'quantity', Number(e.target.value))}
+                        required
+                        min="1"
+                      />
 
-                    {isBulk && (
-                      <div className="cluster gap-2" style={{ background: 'var(--bg-soft)', padding: '4px 8px', borderRadius: '8px' }}>
-                        <span className="x-small muted whitespace-nowrap">Pieces inside:</span>
-                        <input 
-                          className="input compact" 
-                          type="number" 
-                          style={{ width: '70px', padding: '4px 8px' }} 
-                          value={item.piecesPerUnit} 
-                          onChange={e => updateItem(idx, 'piecesPerUnit', Number(e.target.value))}
-                          required={isBulk}
-                          min="1"
-                        />
-                      </div>
-                    )}
+                      {isBulk && (
+                        <div className="cluster gap-2" style={{ background: 'var(--bg-soft)', padding: '4px 8px', borderRadius: '8px' }}>
+                          <span className="x-small muted whitespace-nowrap">Pieces inside:</span>
+                          <input
+                            className="input compact"
+                            type="number"
+                            style={{ width: '70px', padding: '4px 8px' }}
+                            value={item.piecesPerUnit}
+                            onChange={e => updateItem(idx, 'piecesPerUnit', Number(e.target.value))}
+                            required={isBulk}
+                            min="1"
+                          />
+                        </div>
+                      )}
 
-                    <input 
-                      className="input" 
-                      type="number" 
-                      style={{ width: '120px' }} 
-                      placeholder="Cost (Total)" 
-                      value={item.costPrice} 
-                      onChange={e => updateItem(idx, 'costPrice', Number(e.target.value))}
-                      required 
-                      min="0"
-                    />
-                    <button type="button" className="icon-btn ghost hover-danger" onClick={() => removeItem(idx)}>
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                )})}
+                      <input
+                        className="input"
+                        type="number"
+                        style={{ width: '120px' }}
+                        placeholder="Cost (Total)"
+                        value={item.costPrice}
+                        onChange={e => updateItem(idx, 'costPrice', Number(e.target.value))}
+                        required
+                        min="0"
+                      />
+                      <button type="button" className="icon-btn ghost hover-danger" onClick={() => removeItem(idx)}>
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
@@ -390,7 +386,7 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
         </table>
       </div>
 
-      <Pagination 
+      <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
         onPageChange={setCurrentPage}

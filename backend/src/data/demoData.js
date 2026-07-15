@@ -22,15 +22,22 @@ function createProductImage(label, accent, subLabel) {
 
 const demoUsers = [
   {
+    name: 'Super Admin',
+    username: 'superadmin',
+    password: 'superadmin123',
+    role: 'super_admin',
+    branch: 'Global Operations',
+  },
+  {
     name: 'Store Admin',
-    email: 'admin@gmail.com',
+    username: 'admin',
     password: 'admin123',
     role: 'admin',
     branch: 'Main Warehouse',
   },
   {
     name: 'Front Cashier',
-    email: 'cashier@gmail.com',
+    username: 'cashier',
     password: 'cashier123',
     role: 'cashier',
     branch: 'Counter 01',
@@ -278,7 +285,7 @@ function buildDemoSales(products, users) {
       cashier: {
         userId: blueprint.cashier._id,
         name: blueprint.cashier.name,
-        email: blueprint.cashier.email,
+        username: blueprint.cashier.username,
       },
       notes: 'Auto-seeded demo sale',
       createdAt: blueprint.createdAt.toISOString(),

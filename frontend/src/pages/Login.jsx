@@ -96,14 +96,14 @@ export function Login({
 
         <form className="stack gap-5" onSubmit={handleLogin}>
           <label className="field">
-            <span>Corporate Email Address</span>
+            <span>Username</span>
             <input
               className="input"
-              type="email"
-              placeholder="enter email"
-              value={authForm.email}
+              type="text"
+              placeholder="enter username"
+              value={authForm.username}
               onChange={(event) =>
-                setAuthForm((current) => ({ ...current, email: event.target.value }))
+                setAuthForm((current) => ({ ...current, username: event.target.value }))
               }
               required
             />

@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.get('/overview', requireAuth, async (req, res, next) => {
   try {
-    const overview = await getOverviewData(req.user);
+    const overview = await getOverviewData(req.user, req.query.branch);
     res.json(overview);
   } catch (error) {
     next(error);

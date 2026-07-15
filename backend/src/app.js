@@ -19,6 +19,8 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const userRoutes = require('./routes/userRoutes');
 const returnRoutes = require('./routes/returnRoutes');
 const companyRoutes = require('./routes/companyRoutes');
+const branchRoutes = require('./routes/branchRoutes');
+const transferRoutes = require('./routes/transferRoutes');
 
 function createApp() {
   const app = express();
@@ -89,6 +91,8 @@ function createApp() {
   app.use('/api/users', userRoutes);
   app.use('/api/returns', returnRoutes);
   app.use('/api/company', companyRoutes);
+  app.use('/api/branches', branchRoutes);
+  app.use('/api/transfers', transferRoutes);
 
   app.use((error, _req, res, _next) => {
     console.error(error);
