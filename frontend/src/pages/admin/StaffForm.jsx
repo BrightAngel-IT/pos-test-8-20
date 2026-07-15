@@ -57,6 +57,10 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
     setLoading(true)
     try {
       const payload = { ...formData }
+      if (payload.role === 'admin') {
+        payload.branch = 'Unassigned'
+      }
+
       if (editingStaff) {
         payload._id = editingStaff._id
         if (!payload.password) delete payload.password 
@@ -140,20 +144,27 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
             </div>
 
             <div className="grid-2 gap-6">
-              <label className="field">
+              <label className={`field ${formData.role === 'admin' ? 'opacity-50' : ''}`}>
                 <span>Branch Location</span>
                 <div className="input-shell">
                   <Building size={18} className="muted" />
                   {session.user.role === 'super_admin' ? (
                     <select
                       className="ghost-input cursor-pointer"
-                      value={formData.branch}
+                      value={formData.role === 'admin' ? '' : formData.branch}
                       onChange={e => setFormData({ ...formData, branch: e.target.value })}
+                      disabled={formData.role === 'admin'}
                     >
-                      <option value="Main Branch">Main Branch</option>
-                      {branches.map(b => (
-                        b.name !== 'Main Branch' && <option key={b._id} value={b.name}>{b.name}</option>
-                      ))}
+                      {formData.role === 'admin' ? (
+                        <option value="">Unassigned</option>
+                      ) : (
+                        <>
+                          <option value="Main Branch">Main Branch</option>
+                          {branches.map(b => (
+                            b.name !== 'Main Branch' && <option key={b._id} value={b.name}>{b.name}</option>
+                          ))}
+                        </>
+                      )}
                     </select>
                   ) : (
                     <input 
@@ -222,7 +233,7 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
               </div>
               <div className="between x-small">
                 <span className="muted">Branch:</span>
-                <span className="font-bold">{formData.branch || 'Pending'}</span>
+                <span className="font-bold">{formData.role === 'admin' ? 'Unassigned' : (formData.branch || 'Pending')}</span>
               </div>
               <div className="between x-small">
                 <span className="muted">Encryption:</span>

@@ -10,8 +10,7 @@ import {
   Mail,
   MapPin,
   User,
-  ArrowRight,
-  UserPlus
+  ArrowRight
 } from 'lucide-react'
 import { SectionHeading } from '../../components/SectionHeading'
 import { authConfig } from '../../utils'
@@ -21,8 +20,8 @@ export function BranchManagement({ api, session }) {
   const [branches, setBranches] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [showAdminModal, setShowAdminModal] = useState(false)
   const [editingBranch, setEditingBranch] = useState(null)
+  const [users, setUsers] = useState([])
 
   const [form, setForm] = useState({
     name: '',
@@ -33,17 +32,19 @@ export function BranchManagement({ api, session }) {
     status: 'active'
   })
 
-  const [adminForm, setAdminForm] = useState({
-    name: '',
-    username: '',
-    password: '',
-    role: 'admin',
-    branch: ''
-  })
-
   useEffect(() => {
     fetchBranches()
+    fetchUsers()
   }, [])
+
+  async function fetchUsers() {
+    try {
+      const res = await api.get('/users', authConfig(session.token))
+      setUsers(res.data)
+    } catch (err) {
+      console.error('Error fetching users:', err)
+    }
+  }
 
   async function fetchBranches() {
     try {
@@ -97,30 +98,6 @@ export function BranchManagement({ api, session }) {
     }
   }
 
-  const handleOpenRegisterAdmin = (branch, e) => {
-    e.stopPropagation()
-    setAdminForm({
-      name: '',
-      username: '',
-      password: '',
-      role: 'admin',
-      branch: branch.name
-    })
-    setShowAdminModal(true)
-  }
-
-  const handleAdminSubmit = async (e) => {
-    e.preventDefault()
-    try {
-      await api.post('/users', adminForm, authConfig(session.token))
-      setShowAdminModal(false)
-      alert('Admin successfully registered and assigned to ' + adminForm.branch)
-      fetchBranches()
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to register admin')
-    }
-  }
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
@@ -144,6 +121,11 @@ export function BranchManagement({ api, session }) {
       </div>
     )
   }
+
+  const availableAdmins = users.filter(u => 
+    u.role === 'admin' && 
+    !branches.some(b => b.manager === u.name && b._id !== editingBranch?._id)
+  )
 
   return (
     <div className="stack gap-6 animate-fade">
@@ -203,14 +185,6 @@ export function BranchManagement({ api, session }) {
               </div>
 
               <div className="cluster gap-2">
-                <button
-                  className="icon-btn small"
-                  style={{ background: 'var(--accent-soft)', color: 'var(--accent)', border: 'none' }}
-                  onClick={(e) => handleOpenRegisterAdmin(branch, e)}
-                  title="Assign Admin to Branch"
-                >
-                  <UserPlus size={14} />
-                </button>
                 <button
                   className="icon-btn small"
                   style={{ background: 'var(--bg-soft)', border: 'none' }}
@@ -317,12 +291,18 @@ export function BranchManagement({ api, session }) {
               <div className="grid-2 gap-4">
                 <label className="field">
                   <span>Assigned Manager</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. John Doe"
+                  <select
                     value={form.manager}
                     onChange={(e) => setForm({ ...form, manager: e.target.value })}
-                  />
+                  >
+                    <option value="">Unassigned</option>
+                    {availableAdmins.map(admin => (
+                      <option key={admin._id} value={admin.name}>{admin.name}</option>
+                    ))}
+                    {form.manager && !availableAdmins.find(a => a.name === form.manager) && (
+                      <option value={form.manager}>{form.manager} (Current)</option>
+                    )}
+                  </select>
                 </label>
                 <label className="field">
                   <span>Operating Status</span>
@@ -342,67 +322,6 @@ export function BranchManagement({ api, session }) {
                 </button>
                 <button type="submit" className="btn btn-primary">
                   {editingBranch ? 'Save Changes' : 'Register Branch'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Register Admin Modal */}
-      {showAdminModal && (
-        <div className="modal-overlay animate-fade" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center', zIndex: 100 }}>
-          <div className="panel p-6 stack gap-5 glass-panel animate-scale" style={{ width: '480px', borderRadius: '24px', background: 'var(--panel-strong)' }}>
-            <div className="between align-center" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
-              <div>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Register Branch Admin</h2>
-                <p className="small muted">Assigning to branch: <strong className="accent-text">{adminForm.branch}</strong></p>
-              </div>
-              <button className="icon-btn" onClick={() => setShowAdminModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleAdminSubmit} className="stack gap-4">
-              <label className="field">
-                <span>Full Name</span>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Jane Doe"
-                  value={adminForm.name}
-                  onChange={(e) => setAdminForm({ ...adminForm, name: e.target.value })}
-                />
-              </label>
-
-              <label className="field">
-                <span>Username</span>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. admin_jane"
-                  value={adminForm.username}
-                  onChange={(e) => setAdminForm({ ...adminForm, username: e.target.value })}
-                />
-              </label>
-
-              <label className="field">
-                <span>Secure Password</span>
-                <input
-                  type="password"
-                  required
-                  placeholder="Enter a strong password"
-                  value={adminForm.password}
-                  onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
-                />
-              </label>
-
-              <div className="cluster gap-3 end mt-4">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAdminModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Register Admin
                 </button>
               </div>
             </form>

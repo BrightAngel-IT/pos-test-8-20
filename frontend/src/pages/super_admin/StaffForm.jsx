@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react'
-import { 
-  ArrowLeft, 
-  Save, 
-  User, 
-  Mail, 
-  Shield, 
-  MapPin, 
+import {
+  ArrowLeft,
+  Save,
+  User,
+  Mail,
+  Shield,
+  MapPin,
   Key,
   Info,
   ShieldCheck,
@@ -21,9 +21,10 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
     name: '',
     email: '',
     password: '',
-    role: 'cashier',
+    role: 'admin',
     branch: 'Main Branch'
   })
+  const [branches, setBranches] = useState([])
 
   useEffect(() => {
     if (editingStaff) {
@@ -31,28 +32,45 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
         name: editingStaff.name,
         email: editingStaff.email || '',
         password: '', // Password is empty for editing unless changed
-        role: editingStaff.role || 'cashier',
+        role: editingStaff.role || 'admin',
         branch: editingStaff.branch || 'Main Branch'
       })
     }
   }, [editingStaff])
+
+  useEffect(() => {
+    fetchBranches()
+  }, [])
+
+  async function fetchBranches() {
+    try {
+      const res = await api.get('/branches', authConfig(session.token))
+      setBranches(res.data)
+    } catch (err) {
+      console.error('Failed to load branches', err)
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
     try {
       const payload = { ...formData }
+      if (payload.role === 'admin') {
+        payload.branch = 'Unassigned'
+      }
+      
       if (editingStaff) {
         payload._id = editingStaff._id
-        if (!payload.password) delete payload.password 
+        if (!payload.password) delete payload.password
       }
 
       await api.post('/users', payload, authConfig(session.token))
-      onNotice({ 
-        type: 'success', 
-        text: editingStaff ? 'Security profile updated successfully.' : 'New operative successfully onboarded.' 
+      onNotice({
+        type: 'success',
+        text: editingStaff ? 'Security profile updated successfully.' : 'New operative successfully onboarded.'
       })
-      
+
       handleBack()
     } catch (err) {
       onNotice({ type: 'error', text: readErrorMessage(err) })
@@ -98,12 +116,12 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
                 <span>Full Legal Name</span>
                 <div className="input-shell">
                   <User size={18} className="muted" />
-                  <input 
-                    className="ghost-input" 
-                    value={formData.name} 
-                    onChange={e => setFormData({...formData, name: e.target.value})} 
-                    required 
-                    placeholder="e.g. Julian Anderson" 
+                  <input
+                    className="ghost-input"
+                    value={formData.name}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    required
+                    placeholder="e.g. Julian Anderson"
                   />
                 </div>
               </label>
@@ -112,40 +130,54 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
                 <span>Corporate Email</span>
                 <div className="input-shell">
                   <Mail size={18} className="muted" />
-                  <input 
-                    className="ghost-input" 
-                    type="email" 
-                    value={formData.email} 
-                    onChange={e => setFormData({...formData, email: e.target.value})} 
-                    required 
-                    placeholder="julian@brightangel.local" 
+                  <input
+                    className="ghost-input"
+                    type="email"
+                    value={formData.email}
+                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                    required
+                    placeholder="julian@brightangel.local"
                   />
                 </div>
               </label>
             </div>
 
             <div className="grid-2 gap-6">
-              <label className="field">
+              <label className={`field ${formData.role === 'admin' ? 'opacity-50' : ''}`}>
                 <span>Branch Location</span>
                 <div className="input-shell">
                   <Building size={18} className="muted" />
-                  <input 
-                    className="ghost-input" 
-                    value={formData.branch} 
-                    onChange={e => setFormData({...formData, branch: e.target.value})} 
-                    placeholder="e.g. Downtown Warehouse" 
-                  />
+                  <select 
+                    className="ghost-input cursor-pointer" 
+                    value={formData.role === 'admin' ? '' : formData.branch} 
+                    onChange={e => setFormData({...formData, branch: e.target.value})}
+                    disabled={formData.role === 'admin'}
+                  >
+                    {formData.role === 'admin' ? (
+                      <option value="">Unassigned (Set in Branch Mgt)</option>
+                    ) : (
+                      <>
+                        {branches.length === 0 && <option value="Main Branch">Main Branch</option>}
+                        {branches.map(b => (
+                          <option key={b._id} value={b.name}>{b.name}</option>
+                        ))}
+                        {formData.branch && !branches.find(b => b.name === formData.branch) && (
+                          <option value={formData.branch}>{formData.branch}</option>
+                        )}
+                      </>
+                    )}
+                  </select>
                 </div>
               </label>
 
               <label className="field">
-                <span>Access Role</span>
+                <span>System Access Role</span>
                 <div className="input-shell">
                   <ShieldCheck size={18} className="muted" />
-                  <select 
-                    className="ghost-input cursor-pointer" 
-                    value={formData.role} 
-                    onChange={e => setFormData({...formData, role: e.target.value})}
+                  <select
+                    className="ghost-input cursor-pointer"
+                    value={formData.role}
+                    onChange={e => setFormData({ ...formData, role: e.target.value })}
                   >
                     <option value="cashier">Standard Operative (Cashier)</option>
                     <option value="admin">System Administrator</option>
@@ -167,13 +199,13 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
               <span>{editingStaff ? 'Update Password (Leave empty to keep current)' : 'Initialize Password'}</span>
               <div className="input-shell">
                 <Key size={18} className="muted" />
-                <input 
-                  className="ghost-input" 
-                  type="password" 
-                  value={formData.password} 
-                  onChange={e => setFormData({...formData, password: e.target.value})} 
+                <input
+                  className="ghost-input"
+                  type="password"
+                  value={formData.password}
+                  onChange={e => setFormData({ ...formData, password: e.target.value })}
                   required={!editingStaff}
-                  placeholder="Minimum 8 characters with symbols recommended" 
+                  placeholder="Minimum 8 characters with symbols recommended"
                 />
               </div>
               <p className="muted x-small mt-2">Passwords are hashed using industry-standard salt-encryption.</p>
@@ -191,17 +223,17 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
               </div>
               <div className="between x-small">
                 <span className="muted">Branch:</span>
-                <span className="font-bold">{formData.branch || 'Pending'}</span>
+                <span className="font-bold">{formData.role === 'admin' ? 'Unassigned' : (formData.branch || 'Pending')}</span>
               </div>
               <div className="between x-small">
                 <span className="muted">Encryption:</span>
                 <span className="success-text font-bold">AES-Ready</span>
               </div>
             </div>
-            
-            <button 
-              className="btn btn-primary w-full shadow-lg" 
-              type="submit" 
+
+            <button
+              className="btn btn-primary w-full shadow-lg"
+              type="submit"
               disabled={loading}
               style={{ padding: '16px' }}
             >
@@ -214,9 +246,9 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
                 </div>
               )}
             </button>
-            <button 
-              className="btn ghost w-full" 
-              type="button" 
+            <button
+              className="btn ghost w-full"
+              type="button"
               onClick={handleBack}
             >
               Cancel Operation
