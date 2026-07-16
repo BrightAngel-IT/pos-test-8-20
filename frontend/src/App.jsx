@@ -547,6 +547,7 @@ function App() {
       unit: product.unit,
       price: String(product.price),
       costPrice: String(product.costPrice),
+      latestPurchaseCost: product.latestPurchaseCost || 0,
       loyaltyDiscount: String(product.loyaltyDiscount || '0'),
       quantityInStock: String(product.quantityInStock),
       reorderLevel: String(product.reorderLevel),

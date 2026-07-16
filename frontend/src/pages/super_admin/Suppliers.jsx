@@ -35,9 +35,22 @@ export default function Suppliers({ api, session, onNotice }) {
     category: ''
   })
 
+  const [branches, setBranches] = useState([])
+  const [activeBranch, setActiveBranch] = useState('All')
+  
   useEffect(() => {
     fetchSuppliers()
+    fetchBranches()
   }, [])
+
+  async function fetchBranches() {
+    try {
+      const res = await api.get('/branches', authConfig(session.token))
+      setBranches(res.data || [])
+    } catch (err) {
+      console.error('Failed to load branches', err)
+    }
+  }
 
   async function fetchSuppliers() {
     setLoading(true)
@@ -58,7 +71,8 @@ export default function Suppliers({ api, session, onNotice }) {
       email: sup.email || '',
       phone: sup.phone || '',
       address: sup.address || '',
-      category: sup.category || ''
+      category: sup.category || '',
+      branch: sup.branch || ''
     })
     setShowForm(true)
   }
@@ -86,20 +100,22 @@ export default function Suppliers({ api, session, onNotice }) {
       }
       setShowForm(false)
       setEditingId(null)
-      setFormData({ name: '', email: '', phone: '', address: '', category: '' })
+      setFormData({ name: '', email: '', phone: '', address: '', category: '', branch: '' })
       fetchSuppliers()
     } catch (err) {
       onNotice({ type: 'error', text: readErrorMessage(err) })
     }
   }
-  const filtered = suppliers.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    (s.category || '').toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = suppliers.filter(s => {
+    const searchMatch = s.name.toLowerCase().includes(search.toLowerCase()) ||
+                        (s.category || '').toLowerCase().includes(search.toLowerCase())
+    const branchMatch = activeBranch === 'All' || s.branch === activeBranch
+    return searchMatch && branchMatch
+  })
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [search])
+  }, [search, activeBranch])
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage)
   const paginatedSuppliers = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
@@ -146,6 +162,15 @@ export default function Suppliers({ api, session, onNotice }) {
                 <span>Phone Number</span>
                 <input className="input" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="+1 234 567 890" />
               </label>
+              <label className="field">
+                <span>Branch Location</span>
+                <select className="input" value={formData.branch} onChange={e => setFormData({ ...formData, branch: e.target.value })}>
+                  <option value="">Global / Unassigned</option>
+                  {branches.map(b => (
+                    <option key={b._id} value={b.name}>{b.name}</option>
+                  ))}
+                </select>
+              </label>
             </div>
             <label className="field">
               <span>Business Address</span>
@@ -159,10 +184,18 @@ export default function Suppliers({ api, session, onNotice }) {
       )}
 
       <div className="panel glass-panel stack gap-4">
-        <div className="p-6 pb-0">
-          <div className="input-shell compact" style={{ maxWidth: '400px' }}>
+        <div className="p-6 pb-0 flex wrap-row gap-4">
+          <div className="input-shell compact" style={{ flex: 1, minWidth: '300px' }}>
             <Search size={18} className="muted" />
             <input className="ghost-input" placeholder="Search partners by name or category..." value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <div className="stack gap-1">
+            <select className="input compact" style={{ width: '200px' }} value={activeBranch} onChange={e => setActiveBranch(e.target.value)}>
+              <option value="All">All Branches</option>
+              {branches.map(b => (
+                <option key={b._id} value={b.name}>{b.name}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -187,7 +220,10 @@ export default function Suppliers({ api, session, onNotice }) {
                     </div>
                   </td>
                   <td>
-                    <span className="pill neutral small">{sup.category || 'General'}</span>
+                    <div className="stack gap-1">
+                      <span className="pill neutral small">{sup.category || 'General'}</span>
+                      {sup.branch && <span className="muted x-small">Branch: {sup.branch}</span>}
+                    </div>
                   </td>
                   <td>
                     <div className="stack gap-1">

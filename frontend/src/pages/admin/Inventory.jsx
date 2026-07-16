@@ -193,6 +193,7 @@ export function Inventory({
               <th style={{ paddingLeft: '24px' }}>Product Identifier</th>
               <th>Category</th>
               <th>Warehouse Loc</th>
+              <th>Unit Cost</th>
               <th>Unit Price</th>
               <th>Available Stock</th>
               <th>Status</th>
@@ -229,6 +230,9 @@ export function Inventory({
                       <Warehouse size={14} className="muted" />
                       <span className="font-strong">{product.rackLabel}</span>
                     </div>
+                  </td>
+                  <td>
+                    <strong>{formatCurrency(product.costPrice)}</strong>
                   </td>
                   <td>
                     <strong style={{ color: 'var(--accent-strong)' }}>{formatCurrency(product.price)}</strong>

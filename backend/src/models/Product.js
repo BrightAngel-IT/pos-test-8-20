@@ -10,6 +10,7 @@ const productSchema = new mongoose.Schema(
     unit: { type: String, default: 'pcs' },
     price: { type: Number, required: true, min: 0 },
     costPrice: { type: Number, required: true, min: 0 },
+    latestPurchaseCost: { type: Number, default: 0, min: 0 },
     loyaltyDiscount: { type: Number, default: 0, min: 0 },
     quantityInStock: { type: Number, required: true, min: 0 },
     reorderLevel: { type: Number, default: 0, min: 0 },

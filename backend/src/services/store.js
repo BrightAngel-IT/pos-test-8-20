@@ -1628,6 +1628,7 @@ async function createPurchase(payload) {
         { $inc: { quantityInStock: Number(item.quantity) } },
         { upsert: true, new: true }
       );
+      await Product.findByIdAndUpdate(item.product, { latestPurchaseCost: Number(item.costPrice) });
     });
     await Promise.all(updatePromises);
 
@@ -1669,6 +1670,11 @@ async function createPurchase(payload) {
     }
     bs.quantityInStock += Number(item.quantity);
     bs.updatedAt = new Date().toISOString();
+
+    const p = memoryStore.products.find(prod => String(prod._id) === String(item.product));
+    if (p) {
+      p.latestPurchaseCost = Number(item.costPrice);
+    }
   });
 
   return newPurchase;
@@ -1791,6 +1797,16 @@ async function saveBranch(payload) {
           Return.updateMany({ branch: original.name }, { branch: branchData.name }),
         ]);
       }
+
+      if (original.manager !== branchData.manager) {
+        if (original.manager) {
+          await User.updateMany({ name: original.manager }, { branch: 'Unassigned' });
+        }
+        if (branchData.manager) {
+          await User.updateMany({ name: branchData.manager }, { branch: branchData.name });
+        }
+      }
+
       return updated;
     }
 
@@ -1800,6 +1816,10 @@ async function saveBranch(payload) {
     }
 
     const branch = await Branch.create(branchData);
+
+    if (branchData.manager) {
+      await User.updateMany({ name: branchData.manager }, { branch: branchData.name });
+    }
 
     const products = await Product.find().lean();
     const branchStocks = products.map(p => ({
@@ -1821,6 +1841,7 @@ async function saveBranch(payload) {
     if (index < 0) throw createError('Branch not found.', 404);
 
     const oldName = memoryStore.branches[index].name;
+    const oldManager = memoryStore.branches[index].manager;
     memoryStore.branches[index] = {
       ...memoryStore.branches[index],
       ...branchData,
@@ -1832,6 +1853,15 @@ async function saveBranch(payload) {
       memoryStore.users.forEach(u => { if (u.branch === oldName) u.branch = branchData.name; });
       memoryStore.sales.forEach(s => { if (s.branch === oldName) s.branch = branchData.name; });
       memoryStore.returns.forEach(r => { if (r.branch === oldName) r.branch = branchData.name; });
+    }
+
+    if (oldManager !== branchData.manager) {
+      if (oldManager) {
+        memoryStore.users.forEach(u => { if (u.name === oldManager) u.branch = 'Unassigned'; });
+      }
+      if (branchData.manager) {
+        memoryStore.users.forEach(u => { if (u.name === branchData.manager) u.branch = branchData.name; });
+      }
     }
 
     return memoryStore.branches[index];
@@ -1848,6 +1878,10 @@ async function saveBranch(payload) {
   };
 
   memoryStore.branches.push(newBranch);
+
+  if (branchData.manager) {
+    memoryStore.users.forEach(u => { if (u.name === branchData.manager) u.branch = branchData.name; });
+  }
 
   memoryStore.products.forEach(p => {
     memoryStore.branchStocks.push({

@@ -129,12 +129,12 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
     const pDate = p.date ? new Date(p.date) : (p.createdAt ? new Date(p.createdAt) : null);
     if (match && pDate && startDate) {
       const sDate = new Date(startDate);
-      sDate.setHours(0,0,0,0);
+      sDate.setHours(0, 0, 0, 0);
       if (pDate < sDate) match = false;
     }
     if (match && pDate && endDate) {
       const eDate = new Date(endDate);
-      eDate.setHours(23,59,59,999);
+      eDate.setHours(23, 59, 59, 999);
       if (pDate > eDate) match = false;
     }
     return match;
@@ -167,16 +167,16 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
             <span className="muted small font-bold uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.05em' }}>Search Supplier</span>
             <div className="input-shell compact" style={{ background: 'var(--bg-soft)', borderRadius: '10px', height: '38px', padding: '0 12px' }}>
               <Search size={16} className="muted" />
-              <input 
-                type="text" 
-                placeholder="Search by supplier name..." 
+              <input
+                type="text"
+                placeholder="Search by supplier name..."
                 className="ghost-input"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 style={{ fontSize: '0.85rem', color: 'var(--text)' }}
               />
               {search && (
-                <button 
+                <button
                   onClick={() => setSearch('')}
                   className="icon-btn ghost hover-danger"
                   style={{ width: '20px', height: '20px', border: 'none', background: 'transparent', display: 'grid', placeItems: 'center' }}
@@ -190,8 +190,8 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
           <div className="grid-colspan-6 cluster gap-3 align-end">
             <div className="stack gap-1 flex-1">
               <span className="muted small font-bold uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.05em' }}>From Date</span>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
                 style={{ height: '38px', borderRadius: '10px', background: 'var(--bg-soft)', border: '1px solid var(--border)', padding: '0 10px', color: 'var(--text)', fontSize: '0.85rem' }}
@@ -199,8 +199,8 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
             </div>
             <div className="stack gap-1 flex-1">
               <span className="muted small font-bold uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.05em' }}>To Date</span>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={endDate}
                 onChange={e => setEndDate(e.target.value)}
                 style={{ height: '38px', borderRadius: '10px', background: 'var(--bg-soft)', border: '1px solid var(--border)', padding: '0 10px', color: 'var(--text)', fontSize: '0.85rem' }}
@@ -310,7 +310,7 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
                         className="input"
                         type="number"
                         style={{ width: '120px' }}
-                        placeholder="Cost (Total)"
+                        placeholder="Unit Cost"
                         value={item.costPrice}
                         onChange={e => updateItem(idx, 'costPrice', Number(e.target.value))}
                         required
@@ -343,6 +343,7 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
             <tr>
               <th style={{ paddingLeft: '24px' }}>Purchase ID</th>
               <th>Supplier Partner</th>
+              <th>Assigned Branch</th>
               <th>Order Volume</th>
               <th>Financial Valuation</th>
               <th style={{ textAlign: 'right', paddingRight: '24px' }}>Date Processed</th>
@@ -362,6 +363,9 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
                     <strong className="small">{pur.supplier?.name || 'Manual Entry'}</strong>
                     <span className="muted x-small">{pur.supplier?.category || 'General Supply'}</span>
                   </div>
+                </td>
+                <td>
+                  <span className="small badge bg-primary-soft">{pur.branch?.name || pur.branch || 'Main Branch'}</span>
                 </td>
                 <td>
                   <div className="cluster gap-2">

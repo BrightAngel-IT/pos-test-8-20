@@ -36,7 +36,7 @@ export function BranchDetails({ api, session }) {
   const [overview, setOverview] = useState(null)
   const [report, setReport] = useState(null)
   const [overviewLoading, setOverviewLoading] = useState(true)
-  
+
   // New local states for overview search bars
   const [watchlistQuery, setWatchlistQuery] = useState('')
   const [invoiceQuery, setInvoiceQuery] = useState('')
@@ -61,6 +61,7 @@ export function BranchDetails({ api, session }) {
     loyaltyDiscount: '0',
     quantityInStock: '0',
     reorderLevel: '0',
+    latestPurchaseCost: 0,
     rack: { rowNumber: '1', columnNumber: '1', shelfNumber: '1' }
   })
 
@@ -190,6 +191,7 @@ export function BranchDetails({ api, session }) {
       loyaltyDiscount: '0',
       quantityInStock: '0',
       reorderLevel: '5',
+      latestPurchaseCost: 0,
       rack: { rowNumber: '1', columnNumber: '1', shelfNumber: '1' }
     })
     setShowProductModal(true)
@@ -209,6 +211,7 @@ export function BranchDetails({ api, session }) {
       loyaltyDiscount: String(product.loyaltyDiscount || 0),
       quantityInStock: String(product.quantityInStock || 0),
       reorderLevel: String(product.reorderLevel || 0),
+      latestPurchaseCost: product.latestPurchaseCost || 0,
       rack: {
         rowNumber: String(product.rack?.rowNumber || 1),
         columnNumber: String(product.rack?.columnNumber || 1),
@@ -240,10 +243,10 @@ export function BranchDetails({ api, session }) {
       const formattedProducts = purchaseForm.items.map(i => {
         const totalPieces = Number(i.quantity) * Number(i.piecesPerUnit || 1)
         const costPerPiece = Number(i.costPrice) / Number(i.piecesPerUnit || 1)
-        return { 
-          product: i.productId, 
-          quantity: totalPieces, 
-          costPrice: costPerPiece 
+        return {
+          product: i.productId,
+          quantity: totalPieces,
+          costPrice: costPerPiece
         }
       })
 
@@ -254,7 +257,7 @@ export function BranchDetails({ api, session }) {
         branch: decodedBranchName,
         date: new Date()
       }, authConfig(session.token))
-      
+
       setShowPurchaseModal(false)
       loadPurchases()
     } catch (err) {
@@ -279,7 +282,7 @@ export function BranchDetails({ api, session }) {
   const updatePurchaseItem = (index, field, value) => {
     const updated = [...purchaseForm.items]
     updated[index][field] = value
-    
+
     if (field === 'unit' && !['box', 'case', 'pack', 'dozen', 'bundle', 'roll', 'set'].includes(value)) {
       updated[index].piecesPerUnit = 1
     }
@@ -299,7 +302,7 @@ export function BranchDetails({ api, session }) {
         ...returnForm,
         processedBy: session.user._id
       }, authConfig(session.token))
-      
+
       setShowReturnModal(false)
       loadReturns()
     } catch (err) {
@@ -444,9 +447,9 @@ export function BranchDetails({ api, session }) {
                     <SectionHeading title="Live Stock Details" text="Real-time inventory levels." />
                     <div className="search-input compact" style={{ width: '160px', background: 'var(--bg-soft)' }}>
                       <Search size={14} />
-                      <input 
-                        type="text" 
-                        placeholder="Search stock..." 
+                      <input
+                        type="text"
+                        placeholder="Search stock..."
                         value={watchlistQuery}
                         onChange={(e) => setWatchlistQuery(e.target.value)}
                         style={{ fontSize: '0.8rem' }}
@@ -460,22 +463,23 @@ export function BranchDetails({ api, session }) {
                       .map(p => {
                         const isLowStock = Number(p.quantityInStock) <= Number(p.reorderLevel);
                         return (
-                        <div key={p._id} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div className="cluster gap-3">
-                            <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: isLowStock ? 'var(--danger-soft)' : 'var(--accent-soft)', color: isLowStock ? 'var(--danger)' : 'var(--accent-strong)', display: 'grid', placeItems: 'center' }}>
-                              {isLowStock ? <AlertCircle size={18} /> : <Layers size={18} />}
+                          <div key={p._id} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div className="cluster gap-3">
+                              <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: isLowStock ? 'var(--danger-soft)' : 'var(--accent-soft)', color: isLowStock ? 'var(--danger)' : 'var(--accent-strong)', display: 'grid', placeItems: 'center' }}>
+                                {isLowStock ? <AlertCircle size={18} /> : <Layers size={18} />}
+                              </div>
+                              <div>
+                                <strong style={{ fontSize: '0.9rem' }}>{p.name}</strong>
+                                <p className="muted small" style={{ fontSize: '0.75rem' }}>{p.sku}</p>
+                              </div>
                             </div>
-                            <div>
-                              <strong style={{ fontSize: '0.9rem' }}>{p.name}</strong>
-                              <p className="muted small" style={{ fontSize: '0.75rem' }}>{p.sku}</p>
+                            <div className="text-right">
+                              <strong className={isLowStock ? 'text-danger' : 'accent-text'} style={{ fontSize: '1rem' }}>{p.quantityInStock}</strong>
+                              <p className="muted small" style={{ fontSize: '0.7rem' }}>in stock</p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <strong className={isLowStock ? 'text-danger' : 'accent-text'} style={{ fontSize: '1rem' }}>{p.quantityInStock}</strong>
-                            <p className="muted small" style={{ fontSize: '0.7rem' }}>in stock</p>
-                          </div>
-                        </div>
-                      )})}
+                        )
+                      })}
                     {overview?.products?.length === 0 && (
                       <div className="p-4 text-center muted small panel-strong" style={{ borderRadius: '12px' }}>No stock items found.</div>
                     )}
@@ -514,15 +518,15 @@ export function BranchDetails({ api, session }) {
                   <div className="cluster gap-3 wrap-row" style={{ background: 'var(--panel-strong)', padding: '6px 10px', borderRadius: '12px', border: '1px solid var(--border)' }}>
                     <div className="search-input compact" style={{ width: '200px', background: 'var(--bg-soft)' }}>
                       <Search size={14} />
-                      <input 
-                        type="text" 
-                        placeholder="Search cashier, admin or ID..." 
+                      <input
+                        type="text"
+                        placeholder="Search cashier, admin or ID..."
                         value={invoiceQuery}
                         onChange={(e) => setInvoiceQuery(e.target.value)}
                         style={{ fontSize: '0.8rem' }}
                       />
                     </div>
-                    <input 
+                    <input
                       type="date"
                       className="input compact"
                       value={invoiceDate}
@@ -549,32 +553,32 @@ export function BranchDetails({ api, session }) {
                       if (match && invoiceDate) {
                         const sDate = new Date(s.createdAt);
                         const iDate = new Date(invoiceDate);
-                        sDate.setHours(0,0,0,0);
-                        iDate.setHours(0,0,0,0);
+                        sDate.setHours(0, 0, 0, 0);
+                        iDate.setHours(0, 0, 0, 0);
                         if (sDate.getTime() !== iDate.getTime()) match = false;
                       }
                       return match;
                     })
                     .map(s => (
-                    <div key={s._id} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div className="cluster gap-4">
-                        <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--panel)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center' }}>
-                          <FileText size={18} className="muted" />
-                        </div>
-                        <div className="stack gap-1">
-                          <strong style={{ fontSize: '0.95rem' }}>{s.invoiceNumber}</strong>
-                          <div className="cluster gap-3 muted small" style={{ fontSize: '0.75rem' }}>
-                            <span className="cluster gap-1"><Calendar size={12} /> {formatDate(s.createdAt)}</span>
-                            <span className="cluster gap-1"><Users size={12} /> {s.cashierName}</span>
+                      <div key={s._id} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div className="cluster gap-4">
+                          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--panel)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center' }}>
+                            <FileText size={18} className="muted" />
+                          </div>
+                          <div className="stack gap-1">
+                            <strong style={{ fontSize: '0.95rem' }}>{s.invoiceNumber}</strong>
+                            <div className="cluster gap-3 muted small" style={{ fontSize: '0.75rem' }}>
+                              <span className="cluster gap-1"><Calendar size={12} /> {formatDate(s.createdAt)}</span>
+                              <span className="cluster gap-1"><Users size={12} /> {s.cashierName}</span>
+                            </div>
                           </div>
                         </div>
+                        <div className="text-right">
+                          <strong className="accent-text" style={{ fontSize: '1.05rem' }}>{formatCurrency(s.total)}</strong>
+                          <p className="muted small" style={{ fontSize: '0.75rem' }}>{s.items?.length || 0} items</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <strong className="accent-text" style={{ fontSize: '1.05rem' }}>{formatCurrency(s.total)}</strong>
-                        <p className="muted small" style={{ fontSize: '0.75rem' }}>{s.items?.length || 0} items</p>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
                   {report?.recentSales?.length === 0 && (
                     <div className="p-4 text-center muted small panel-strong" style={{ borderRadius: '12px' }}>No invoices found.</div>
                   )}
@@ -599,7 +603,7 @@ export function BranchDetails({ api, session }) {
                   onChange={(e) => setInventoryQuery(e.target.value)}
                 />
               </div>
-              
+
               <label className="checkbox-container small">
                 <input
                   type="checkbox"
@@ -609,7 +613,7 @@ export function BranchDetails({ api, session }) {
                 <span>Critical Alerts Only</span>
               </label>
             </div>
-            
+
             <button className="btn btn-primary" onClick={handleOpenAddProduct}>
               <Plus size={16} />
               Register Product Stock
@@ -626,7 +630,6 @@ export function BranchDetails({ api, session }) {
                     <th>Product details</th>
                     <th>SKU & barcode</th>
                     <th>Category</th>
-                    <th>Unit Cost</th>
                     <th>Selling Price</th>
                     <th>Rack mapping</th>
                     <th>Inventory level</th>
@@ -652,7 +655,6 @@ export function BranchDetails({ api, session }) {
                           <p className="muted small" style={{ fontSize: '0.75rem' }}>🏷️ {p.barcode}</p>
                         </td>
                         <td>{p.category}</td>
-                        <td>{formatCurrency(p.costPrice)}</td>
                         <td>{formatCurrency(p.price)}</td>
                         <td><span className="rack-tag font-mono">{p.rackLabel || 'R1-C1-S1'}</span></td>
                         <td>
@@ -676,7 +678,7 @@ export function BranchDetails({ api, session }) {
                   })}
                   {filteredProducts.length === 0 && (
                     <tr>
-                      <td colSpan="8" style={{ textAlign: 'center', padding: '48px 0' }} className="muted">No products matching inventory search filters.</td>
+                      <td colSpan="7" style={{ textAlign: 'center', padding: '48px 0' }} className="muted">No products matching inventory search filters.</td>
                     </tr>
                   )}
                 </tbody>
@@ -759,15 +761,12 @@ export function BranchDetails({ api, session }) {
 
                   <div className="grid-3 gap-4">
                     <label className="field">
-                      <span>Procurement Cost (LKR)</span>
-                      <input
-                        type="number"
-                        required
-                        min="0"
-                        step="0.01"
-                        value={productForm.costPrice}
-                        onChange={(e) => setProductForm({ ...productForm, costPrice: e.target.value })}
-                      />
+                      <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        {productForm.latestPurchaseCost > 0 && (
+                          <span style={{ color: 'var(--accent)' }} title="Latest Purchase Unit Cost">Latest purchased <br /> Unit Cost : (LKR) {productForm.latestPurchaseCost}</span>
+                        )}
+                      </span>
+
                     </label>
                     <label className="field">
                       <span>Standard Sell Price (LKR)</span>
@@ -955,74 +954,75 @@ export function BranchDetails({ api, session }) {
                       const isBulk = ['box', 'case', 'pack', 'dozen', 'bundle', 'roll', 'set'].includes(item.unit)
 
                       return (
-                      <div key={idx} className="cluster gap-2 align-center wrap-row p-2 panel-strong" style={{ borderRadius: '8px' }}>
-                        <select
-                          required
-                          style={{ flex: 2, padding: '10px', minWidth: '150px' }}
-                          value={item.productId}
-                          onChange={(e) => updatePurchaseItem(idx, 'productId', e.target.value)}
-                        >
-                          <option value="">-- Select Product --</option>
-                          {products.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
-                        </select>
-                        
-                        <select 
-                          className="input" 
-                          style={{ width: '100px', padding: '10px' }} 
-                          value={item.unit} 
-                          onChange={e => updatePurchaseItem(idx, 'unit', e.target.value)}
-                        >
-                          <option value="pcs">Pieces</option>
-                          <option value="box">Box</option>
-                          <option value="pack">Pack</option>
-                          <option value="case">Case</option>
-                          <option value="dozen">Dozen</option>
-                          <option value="bundle">Bundle</option>
-                          <option value="roll">Roll</option>
-                          <option value="set">Set</option>
-                          <option value="kg">KG</option>
-                          <option value="ltr">Liter</option>
-                        </select>
+                        <div key={idx} className="cluster gap-2 align-center wrap-row p-2 panel-strong" style={{ borderRadius: '8px' }}>
+                          <select
+                            required
+                            style={{ flex: 2, padding: '10px', minWidth: '150px' }}
+                            value={item.productId}
+                            onChange={(e) => updatePurchaseItem(idx, 'productId', e.target.value)}
+                          >
+                            <option value="">-- Select Product --</option>
+                            {products.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
+                          </select>
 
-                        <input
-                          type="number"
-                          required
-                          min="1"
-                          style={{ flex: 1, padding: '10px', maxWidth: '80px' }}
-                          placeholder="Qty"
-                          value={item.quantity}
-                          onChange={(e) => updatePurchaseItem(idx, 'quantity', e.target.value)}
-                        />
+                          <select
+                            className="input"
+                            style={{ width: '100px', padding: '10px' }}
+                            value={item.unit}
+                            onChange={e => updatePurchaseItem(idx, 'unit', e.target.value)}
+                          >
+                            <option value="pcs">Pieces</option>
+                            <option value="box">Box</option>
+                            <option value="pack">Pack</option>
+                            <option value="case">Case</option>
+                            <option value="dozen">Dozen</option>
+                            <option value="bundle">Bundle</option>
+                            <option value="roll">Roll</option>
+                            <option value="set">Set</option>
+                            <option value="kg">KG</option>
+                            <option value="ltr">Liter</option>
+                          </select>
 
-                        {isBulk && (
-                          <div className="cluster gap-2" style={{ background: 'var(--bg-soft)', padding: '4px 8px', borderRadius: '8px' }}>
-                            <span className="x-small muted whitespace-nowrap">Pieces inside:</span>
-                            <input 
-                              type="number" 
-                              style={{ width: '60px', padding: '8px' }} 
-                              value={item.piecesPerUnit} 
-                              onChange={e => updatePurchaseItem(idx, 'piecesPerUnit', e.target.value)}
-                              required={isBulk}
-                              min="1"
-                            />
-                          </div>
-                        )}
+                          <input
+                            type="number"
+                            required
+                            min="1"
+                            style={{ flex: 1, padding: '10px', maxWidth: '80px' }}
+                            placeholder="Qty"
+                            value={item.quantity}
+                            onChange={(e) => updatePurchaseItem(idx, 'quantity', e.target.value)}
+                          />
 
-                        <input
-                          type="number"
-                          required
-                          min="0"
-                          step="0.01"
-                          style={{ flex: 1.2, padding: '10px', maxWidth: '120px' }}
-                          placeholder="Total Cost"
-                          value={item.costPrice}
-                          onChange={(e) => updatePurchaseItem(idx, 'costPrice', e.target.value)}
-                        />
-                        <button type="button" className="icon-btn small danger" onClick={() => removePurchaseItem(idx)}>
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    )})}
+                          {isBulk && (
+                            <div className="cluster gap-2" style={{ background: 'var(--bg-soft)', padding: '4px 8px', borderRadius: '8px' }}>
+                              <span className="x-small muted whitespace-nowrap">Pieces inside:</span>
+                              <input
+                                type="number"
+                                style={{ width: '60px', padding: '8px' }}
+                                value={item.piecesPerUnit}
+                                onChange={e => updatePurchaseItem(idx, 'piecesPerUnit', e.target.value)}
+                                required={isBulk}
+                                min="1"
+                              />
+                            </div>
+                          )}
+
+                          <input
+                            type="number"
+                            required
+                            min="0"
+                            step="0.01"
+                            style={{ flex: 1.2, padding: '10px', maxWidth: '120px' }}
+                            placeholder="Total Cost"
+                            value={item.costPrice}
+                            onChange={(e) => updatePurchaseItem(idx, 'costPrice', e.target.value)}
+                          />
+                          <button type="button" className="icon-btn small danger" onClick={() => removePurchaseItem(idx)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )
+                    })}
                   </div>
 
                   <div className="between align-center p-3 mt-2 panel-strong" style={{ borderRadius: '12px' }}>

@@ -7,6 +7,7 @@ const supplierSchema = new mongoose.Schema({
   address: String,
   email: String,
   phone: String,
+  branch: { type: String, default: '' },
   balance: { type: Number, default: 0 }
 });
 

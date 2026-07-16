@@ -11,13 +11,20 @@ export function InventoryTransfer({ api, session, onNotice, refreshCoreData }) {
     items: []
   })
   const [showForm, setShowForm] = useState(false)
-  const [searchBranch, setSearchBranch] = useState('')
+  const [sourceBranchSearch, setSourceBranchSearch] = useState('')
+  const [destBranchSearch, setDestBranchSearch] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [sourceBranchSearch, destBranchSearch, startDate, endDate])
 
   async function loadData() {
     try {
@@ -90,11 +97,15 @@ export function InventoryTransfer({ api, session, onNotice, refreshCoreData }) {
 
   const filteredTransfers = transfers.filter(t => {
     let match = true;
-    if (searchBranch) {
-      const q = searchBranch.toLowerCase();
+    if (sourceBranchSearch) {
+      const q = sourceBranchSearch.toLowerCase();
       const sBranch = t.sourceBranch?.toLowerCase() || '';
+      if (!sBranch.includes(q)) match = false;
+    }
+    if (destBranchSearch) {
+      const q = destBranchSearch.toLowerCase();
       const dBranch = t.destBranch?.toLowerCase() || '';
-      if (!sBranch.includes(q) && !dBranch.includes(q)) match = false;
+      if (!dBranch.includes(q)) match = false;
     }
     const tDate = t.createdAt ? new Date(t.createdAt) : null;
     if (match && tDate && startDate) {
@@ -109,6 +120,12 @@ export function InventoryTransfer({ api, session, onNotice, refreshCoreData }) {
     }
     return match;
   });
+
+  const totalPages = Math.ceil(filteredTransfers.length / itemsPerPage);
+  const paginatedTransfers = filteredTransfers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
     <div className="stack gap-6 p-6 animate-fade-in">
@@ -246,14 +263,25 @@ export function InventoryTransfer({ api, session, onNotice, refreshCoreData }) {
             
             <div className="cluster gap-3 wrap-row" style={{ background: 'var(--panel-strong)', padding: '8px 12px', borderRadius: '12px', border: '1px solid var(--border)' }}>
               <div className="cluster gap-2">
-                <span className="muted small font-bold">Branch</span>
+                <span className="muted small font-bold">Source</span>
                 <input 
                   type="text" 
-                  placeholder="Search branch..." 
-                  value={searchBranch}
-                  onChange={e => setSearchBranch(e.target.value)}
+                  placeholder="Search source..." 
+                  value={sourceBranchSearch}
+                  onChange={e => setSourceBranchSearch(e.target.value)}
                   className="input compact"
-                  style={{ width: '150px' }}
+                  style={{ width: '120px' }}
+                />
+              </div>
+              <div className="cluster gap-2">
+                <span className="muted small font-bold">Dest</span>
+                <input 
+                  type="text" 
+                  placeholder="Search dest..." 
+                  value={destBranchSearch}
+                  onChange={e => setDestBranchSearch(e.target.value)}
+                  className="input compact"
+                  style={{ width: '120px' }}
                 />
               </div>
               <div className="cluster gap-2">
@@ -274,9 +302,9 @@ export function InventoryTransfer({ api, session, onNotice, refreshCoreData }) {
                   className="input compact"
                 />
               </div>
-              {(searchBranch || startDate || endDate) && (
+              {(sourceBranchSearch || destBranchSearch || startDate || endDate) && (
                 <button 
-                  onClick={() => { setSearchBranch(''); setStartDate(''); setEndDate(''); }}
+                  onClick={() => { setSourceBranchSearch(''); setDestBranchSearch(''); setStartDate(''); setEndDate(''); }}
                   className="btn btn-ghost hover-danger"
                   style={{ padding: '0 8px' }}
                 >
@@ -297,23 +325,23 @@ export function InventoryTransfer({ api, session, onNotice, refreshCoreData }) {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>Source Branch</th>
-                    <th>Destination Branch</th>
-                    <th>Products Transferred</th>
+                    <th style={{ padding: '16px' }}>Date</th>
+                    <th style={{ padding: '16px' }}>Source Branch</th>
+                    <th style={{ padding: '16px' }}>Destination Branch</th>
+                    <th style={{ padding: '16px' }}>Products Transferred</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTransfers.map(t => (
+                  {paginatedTransfers.map(t => (
                     <tr key={t._id}>
-                      <td>{new Date(t.createdAt).toLocaleString()}</td>
-                      <td>
+                      <td style={{ padding: '16px' }}>{new Date(t.createdAt).toLocaleString()}</td>
+                      <td style={{ padding: '16px' }}>
                         <span className="badge warning">{t.sourceBranch}</span>
                       </td>
-                      <td>
+                      <td style={{ padding: '16px' }}>
                         <span className="badge success">{t.destBranch}</span>
                       </td>
-                      <td>
+                      <td style={{ padding: '16px' }}>
                         <div className="stack gap-1">
                           {t.products.map((p, idx) => (
                             <div key={idx} className="cluster gap-2 align-center x-small">
@@ -327,6 +355,26 @@ export function InventoryTransfer({ api, session, onNotice, refreshCoreData }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          
+          {totalPages > 1 && (
+            <div className="cluster justify-center mt-4 gap-4 align-center">
+              <button 
+                className="btn btn-outline small" 
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <span className="muted small font-bold">Page {currentPage} of {totalPages}</span>
+              <button 
+                className="btn btn-outline small" 
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
             </div>
           )}
         </div>

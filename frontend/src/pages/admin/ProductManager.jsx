@@ -32,8 +32,8 @@ export function ProductManager({
         )}
       </div>
 
-      <form 
-        onSubmit={handleProductSave} 
+      <form
+        onSubmit={handleProductSave}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
             e.preventDefault();
@@ -44,22 +44,22 @@ export function ProductManager({
         <div className="stack gap-4">
           {/* Main Attributes & Media Panel */}
           <div className="panel p-5 glass-panel stack gap-4" style={{ gridColumn: 'span 2', borderRadius: '16px' }}>
-            
+
             {/* New Media Section on Left */}
             <div className="stack gap-4">
               <div className="cluster gap-2 mb-1">
                 <ImageIcon size={16} className="accent-text" />
                 <span className="eyebrow" style={{ fontSize: '0.65rem' }}>Media & Assets</span>
               </div>
-              
+
               <div className="grid-2 gap-4 align-center" style={{ gridTemplateColumns: '140px 1fr' }}>
-                <div 
-                  className="panel-strong glow-on-hover" 
-                  style={{ 
-                    height: '110px', 
-                    borderRadius: '14px', 
-                    border: '2px dashed var(--border)', 
-                    display: 'grid', 
+                <div
+                  className="panel-strong glow-on-hover"
+                  style={{
+                    height: '110px',
+                    borderRadius: '14px',
+                    border: '2px dashed var(--border)',
+                    display: 'grid',
                     placeItems: 'center',
                     overflow: 'hidden',
                     background: 'var(--bg-soft)',
@@ -67,10 +67,10 @@ export function ProductManager({
                   }}
                 >
                   {productForm.imageFile || productForm.image ? (
-                    <img 
-                      src={productForm.imageFile ? URL.createObjectURL(productForm.imageFile) : (productForm.image?.startsWith('/uploads') ? `${getBaseUrl()}${productForm.image}` : productForm.image)} 
-                      alt="Preview" 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                    <img
+                      src={productForm.imageFile ? URL.createObjectURL(productForm.imageFile) : (productForm.image?.startsWith('/uploads') ? `${getBaseUrl()}${productForm.image}` : productForm.image)}
+                      alt="Preview"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                   ) : (
                     <div className="stack align-center gap-2 muted">
@@ -79,24 +79,24 @@ export function ProductManager({
                     </div>
                   )}
                 </div>
-                
+
                 <div className="stack gap-3">
                   <label className="btn btn-secondary w-fit" style={{ cursor: 'pointer', padding: '10px 20px' }}>
                     <Plus size={16} />
                     {productForm.imageFile || productForm.image ? 'Change Media' : 'Upload Product Photo'}
-                    <input 
-                      type="file" 
-                      name="image" 
-                      accept="image/*" 
-                      onChange={handleProductFormChange} 
-                      style={{ display: 'none' }} 
+                    <input
+                      type="file"
+                      name="image"
+                      accept="image/*"
+                      onChange={handleProductFormChange}
+                      style={{ display: 'none' }}
                     />
                   </label>
                   <p className="muted small">Recommended: 800x800px or larger. Max 5MB.</p>
                   {(productForm.imageFile || productForm.image) && (
-                    <button 
+                    <button
                       type="button"
-                      className="btn btn-outline small w-fit" 
+                      className="btn btn-outline small w-fit"
                       style={{ color: 'var(--danger)' }}
                       onClick={() => handleProductFormChange({ target: { name: 'image', type: 'file', files: null } })}
                     >
@@ -114,100 +114,100 @@ export function ProductManager({
                 <span className="eyebrow" style={{ fontSize: '0.65rem' }}>Primary Attributes</span>
               </div>
 
-            <label className="field">
-              <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Full Product Name</span>
-              <input
-                className="input large-input"
-                name="name"
-                placeholder="e.g. Product Name"
-                value={productForm.name}
-                onChange={handleProductFormChange}
-                required
-                style={{ fontSize: '1rem', fontWeight: 100 }}
-              />
-            </label>
-
-            <label className="field">
-              <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Technical Description</span>
-              <textarea
-                className="input"
-                name="description"
-                placeholder="Add detailed specs, warranty details..."
-                style={{ minHeight: '100px', resize: 'vertical', fontSize: '0.9rem' }}
-                value={productForm.description}
-                onChange={handleProductFormChange}
-              />
-            </label>
-
-            <div className="grid-2 gap-5">
               <label className="field">
-                <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Business Category</span>
+                <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Full Product Name</span>
                 <input
-                  className="input"
-                  name="category"
-                  placeholder="e.g. Beverages"
-                  value={productForm.category}
+                  className="input large-input"
+                  name="name"
+                  placeholder="e.g. Product Name"
+                  value={productForm.name}
                   onChange={handleProductFormChange}
                   required
+                  style={{ fontSize: '1rem', fontWeight: 100 }}
                 />
               </label>
+
               <label className="field">
-                <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Unit of Measurement</span>
-                <select
+                <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Technical Description</span>
+                <textarea
                   className="input"
-                  name="unit"
-                  value={productForm.unit}
+                  name="description"
+                  placeholder="Add detailed specs, warranty details..."
+                  style={{ minHeight: '100px', resize: 'vertical', fontSize: '0.9rem' }}
+                  value={productForm.description}
                   onChange={handleProductFormChange}
-                >
-                  <option value="">Select a unit</option>
-                  <option value="kg">Kilogram (kg)</option>
-                  <option value="g">Gram (g)</option>
-                  <option value="ltr">Liter (ltr)</option>
-                  <option value="ml">Milliliter (ml)</option>
-                  <option value="box">Box</option>
-                  <option value="pcs">Pieces (pcs)</option>
-                  <option value="dozen">Dozen</option>
-                  <option value="pack">Pack</option>
-                  <option value="case">Case</option>
-                  <option value="bundle">Bundle</option>
-                  <option value="set">Set</option>
-                  <option value="roll">Roll</option>
-                  <option value="tube">Tube</option>
-                  <option value="meter">Meter (m)</option>
-                  <option value="sq-meter">Square Meter (m²)</option>
-                </select>
+                />
               </label>
-            </div>
-          </div>
 
-          <div className="stack gap-3 pt-3" style={{ borderTop: '1px solid var(--border)', marginTop: '0.5rem' }}>
-            <div className="cluster gap-2 mb-1">
-              <Warehouse size={16} className="accent-text" />
-              <span className="eyebrow" style={{ fontSize: '0.65rem' }}>Warehouse Logic & Placement</span>
+              <div className="grid-2 gap-5">
+                <label className="field">
+                  <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Business Category</span>
+                  <input
+                    className="input"
+                    name="category"
+                    placeholder="e.g. Beverages"
+                    value={productForm.category}
+                    onChange={handleProductFormChange}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Unit of Measurement</span>
+                  <select
+                    className="input"
+                    name="unit"
+                    value={productForm.unit}
+                    onChange={handleProductFormChange}
+                  >
+                    <option value="">Select a unit</option>
+                    <option value="kg">Kilogram (kg)</option>
+                    <option value="g">Gram (g)</option>
+                    <option value="ltr">Liter (ltr)</option>
+                    <option value="ml">Milliliter (ml)</option>
+                    <option value="box">Box</option>
+                    <option value="pcs">Pieces (pcs)</option>
+                    <option value="dozen">Dozen</option>
+                    <option value="pack">Pack</option>
+                    <option value="case">Case</option>
+                    <option value="bundle">Bundle</option>
+                    <option value="set">Set</option>
+                    <option value="roll">Roll</option>
+                    <option value="tube">Tube</option>
+                    <option value="meter">Meter (m)</option>
+                    <option value="sq-meter">Square Meter (m²)</option>
+                  </select>
+                </label>
+              </div>
             </div>
 
-            <div className="grid-3 gap-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-              <label className="field">
-                <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Row (R)</span>
-                <input className="input text-center font-mono" style={{ width: '100%', minWidth: '0' }} type="number" name="rack.rowNumber" value={productForm.rack.rowNumber} onChange={handleProductFormChange} required />
-              </label>
-              <label className="field">
-                <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Column (C)</span>
-                <input className="input text-center font-mono" style={{ width: '100%', minWidth: '0' }} type="number" name="rack.columnNumber" value={productForm.rack.columnNumber} onChange={handleProductFormChange} required />
-              </label>
-              <label className="field">
-                <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Shelf (S)</span>
-                <input className="input text-center font-mono" style={{ width: '100%', minWidth: '0' }} type="number" name="rack.shelfNumber" value={productForm.rack.shelfNumber} onChange={handleProductFormChange} required />
-              </label>
-            </div>
+            <div className="stack gap-3 pt-3" style={{ borderTop: '1px solid var(--border)', marginTop: '0.5rem' }}>
+              <div className="cluster gap-2 mb-1">
+                <Warehouse size={16} className="accent-text" />
+                <span className="eyebrow" style={{ fontSize: '0.65rem' }}>Warehouse Logic & Placement</span>
+              </div>
 
-            <div className="cluster gap-3 p-3 panel-strong" style={{ borderRadius: '12px', border: '1px dashed var(--border)', background: 'var(--bg-soft)' }}>
-              <CheckCircle2 size={16} className="success-text" />
-              <p className="muted small">
-                Storage Label: <strong style={{ color: 'var(--text)' }}>R{productForm.rack.rowNumber}-C{productForm.rack.columnNumber}-S{productForm.rack.shelfNumber}</strong>
-              </p>
+              <div className="grid-3 gap-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                <label className="field">
+                  <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Row (R)</span>
+                  <input className="input text-center font-mono" style={{ width: '100%', minWidth: '0' }} type="number" name="rack.rowNumber" value={productForm.rack.rowNumber} onChange={handleProductFormChange} required />
+                </label>
+                <label className="field">
+                  <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Column (C)</span>
+                  <input className="input text-center font-mono" style={{ width: '100%', minWidth: '0' }} type="number" name="rack.columnNumber" value={productForm.rack.columnNumber} onChange={handleProductFormChange} required />
+                </label>
+                <label className="field">
+                  <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Shelf (S)</span>
+                  <input className="input text-center font-mono" style={{ width: '100%', minWidth: '0' }} type="number" name="rack.shelfNumber" value={productForm.rack.shelfNumber} onChange={handleProductFormChange} required />
+                </label>
+              </div>
+
+              <div className="cluster gap-3 p-3 panel-strong" style={{ borderRadius: '12px', border: '1px dashed var(--border)', background: 'var(--bg-soft)' }}>
+                <CheckCircle2 size={16} className="success-text" />
+                <p className="muted small">
+                  Storage Label: <strong style={{ color: 'var(--text)' }}>R{productForm.rack.rowNumber}-C{productForm.rack.columnNumber}-S{productForm.rack.shelfNumber}</strong>
+                </p>
+              </div>
             </div>
-          </div>
           </div>
         </div>
 
@@ -255,11 +255,14 @@ export function ProductManager({
 
             <div className="grid-2 gap-4">
               <label className="field">
-                <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Cost</span>
-                <div className="input-shell compact" style={{ borderRadius: '10px' }}>
-                  <span className="muted x-small">$</span>
-                  <input className="ghost-input font-strong small" type="number" name="costPrice" value={productForm.costPrice} onChange={handleProductFormChange} required />
-                </div>
+                <span className="muted small font-strong " style={{ fontSize: '0.6rem', display: 'flex', justifyContent: 'space-between', marginTop: '5px' }}>
+                  {(productForm.latestPurchaseCost > 0 || productForm.costPrice > 0) && (
+                    <span style={{ color: 'var(--accent)' }} title="Latest Purchase Unit Cost">
+                      Latest purchased <br /> Unit Cost : (LKR) {productForm.latestPurchaseCost > 0 ? productForm.latestPurchaseCost : productForm.costPrice}
+                    </span>
+                  )}
+                </span>
+
               </label>
               <label className="field">
                 <span className="muted small font-strong uppercase" style={{ fontSize: '0.6rem' }}>Price</span>
@@ -293,11 +296,6 @@ export function ProductManager({
               </label>
             </div>
 
-            <div className="text-center">
-              <span className="pill success-soft" style={{ fontSize: '0.65rem', padding: '4px 12px' }}>
-                Est. Margin: <strong style={{ color: 'var(--success)' }}>{(((productForm.price - productForm.costPrice) / (productForm.price || 1)) * 100).toFixed(0)}%</strong>
-              </span>
-            </div>
           </div>
 
           <button
