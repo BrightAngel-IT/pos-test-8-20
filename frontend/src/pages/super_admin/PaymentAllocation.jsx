@@ -18,7 +18,7 @@ import { SectionHeading } from '../../components/SectionHeading'
 import { formatCurrency, authConfig } from '../../utils'
 
 export function PaymentAllocation({ api, session, onNotice }) {
-  const [settlementMode, setSettlementMode] = useState('customer') // 'customer' or 'supplier'
+  const [settlementMode] = useState('supplier') // Forced to supplier for super_admin
   const [entities, setEntities] = useState([]) // Customers or Suppliers
   const [selectedEntityId, setSelectedEntityId] = useState('')
   const [invoices, setInvoices] = useState([])
@@ -160,33 +160,12 @@ export function PaymentAllocation({ api, session, onNotice }) {
           </div>
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>
-              {settlementMode === 'customer' ? 'Customer Collections' : 'Supplier Settlements'}
+              Supplier Settlements
             </h2>
             <p className="muted small">
-              {settlementMode === 'customer'
-                ? 'Record payments received from clients and reconcile balances.'
-                : 'Process outgoing payments to vendors and settle outstanding bills.'}
+              Process outgoing payments to vendors and settle outstanding bills.
             </p>
           </div>
-        </div>
-
-        <div className="cluster p-1 panel-strong" style={{ background: 'var(--bg-soft)', borderRadius: '14px', border: '1px solid var(--border)' }}>
-          <button
-            className={`btn sm ${settlementMode === 'customer' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setSettlementMode('customer')}
-            style={{ borderRadius: '10px', minWidth: '120px' }}
-          >
-            <Users size={16} />
-            Customer
-          </button>
-          <button
-            className={`btn sm ${settlementMode === 'supplier' ? 'btn-primary' : 'btn-ghost'}`}
-            style={{ borderRadius: '10px', minWidth: '120px', background: settlementMode === 'supplier' ? 'var(--accent)' : 'transparent' }}
-            onClick={() => setSettlementMode('supplier')}
-          >
-            <Building2 size={16} />
-            Supplier
-          </button>
         </div>
       </div>
 

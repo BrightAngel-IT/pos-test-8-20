@@ -22,6 +22,8 @@ import { SectionHeading } from '../../components/SectionHeading'
 import { formatCurrency } from '../../utils'
 
 export function POS({
+  api,
+  session,
   catalogProducts,
   catalogQuery,
   setCatalogQuery,
@@ -60,6 +62,47 @@ export function POS({
 
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false)
   const [customerSearch, setCustomerSearch] = useState('')
+
+  const [unpaidMetrics, setUnpaidMetrics] = useState({ totalUnpaid: 0, oldestUnpaidDays: 0, isOverdue: false })
+
+  React.useEffect(() => {
+    if (!checkoutForm.customerId || !api || !session) {
+      setUnpaidMetrics({ totalUnpaid: 0, oldestUnpaidDays: 0, isOverdue: false })
+      return
+    }
+
+    const fetchUnpaid = async () => {
+      try {
+        const resp = await api.get(`/customer-invoices/customer/${checkoutForm.customerId}`, {
+          headers: { Authorization: `Bearer ${session.token}` }
+        })
+        const unpaidInvoices = resp.data.filter(inv => inv.status === 'UNPAID' || inv.status === 'PARTIAL')
+        
+        let total = 0
+        let oldestDays = 0
+        const now = new Date()
+
+        unpaidInvoices.forEach(inv => {
+          total += Number(inv.balanceAmount || 0)
+          const invDate = new Date(inv.date)
+          const diffTime = Math.abs(now - invDate)
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+          if (diffDays > oldestDays) {
+            oldestDays = diffDays
+          }
+        })
+
+        const customerObj = customers.find(c => c._id === checkoutForm.customerId)
+        const limitDays = customerObj?.creditPeriodDays || 0
+        const isOverdue = limitDays > 0 && oldestDays > limitDays
+
+        setUnpaidMetrics({ totalUnpaid: total, oldestUnpaidDays: oldestDays, isOverdue })
+      } catch (err) {
+        console.error("Failed to fetch unpaid metrics", err)
+      }
+    }
+    fetchUnpaid()
+  }, [checkoutForm.customerId, api, session, customers])
 
   const filteredCustomers = customers.filter(c =>
     c.name.toLowerCase().includes(customerSearch.toLowerCase())
@@ -101,6 +144,11 @@ export function POS({
 
   return (
     <div className="pos-grid animate-fade" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '16px', width: '100%', padding: '0 10px' }}>
+      {unpaidMetrics.isOverdue && (
+        <div className="p-3" style={{ gridColumn: '1 / -1', background: 'var(--danger-soft)', borderRadius: '8px', border: '1px solid var(--danger)', color: 'var(--danger-strong)', textAlign: 'center', fontSize: '1rem', fontWeight: 600 }}>
+          Customer has overdue payments (older than {customers.find(c => c._id === checkoutForm.customerId)?.creditPeriodDays || 0} days). Cannot process new credit bills until they are cleared.
+        </div>
+      )}
       <aside className="stack gap-4 sticky-panel">
         <div className="panel p-4 stack gap-4 glass-panel" style={{ minHeight: '400px' }}>
           <div className="between wrap-row gap-2 mb-2">
@@ -151,7 +199,7 @@ export function POS({
           </div>
 
           <div className="stack gap-0" style={{ flex: 1, overflowY: 'auto', maxHeight: '600px', border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--bg-soft)', overflowX: 'hidden' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(170px, 1.5fr) 90px 1fr 1fr 1fr 34px', gap: '5px', padding: '10px 12px', borderBottom: '1px solid var(--border)', background: 'var(--panel)', fontSize: '0.7rem', fontWeight: 800, position: 'sticky', top: 0, zIndex: 10, letterSpacing: '0.03em', textTransform: 'uppercase', alignItems: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(170px, 1.5fr) 90px 1fr 1fr 1fr 34px', gap: '5px', padding: '10px 12px', borderBottom: '1px solid var(--border)', background: 'var(--panel)', fontSize: '0.7rem', fontWeight: 800, position: 'sticky', top: 0, zIndex: 10, letterSpacing: '0.03em', textTransform: 'uppercase', alignItems: 'center' }}>
               <span style={{ paddingRight: '4px', whiteSpace: 'nowrap' }}>Item Description</span>
               <span style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Qty</span>
               <span style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Price</span>
@@ -236,16 +284,16 @@ export function POS({
         <form className="panel p-4 stack gap-4 glass-panel" onSubmit={handleCheckout} style={{ position: 'sticky', top: '16px', border: '1px solid var(--accent-soft)' }}>
           <div className="stack gap-3">
             {checkoutForm.loyaltyCard && (
-              <div className="p-4 mb-4" style={{ 
-                borderRadius: '16px', 
-                background: 'linear-gradient(135deg, var(--accent-soft), rgba(59, 130, 246, 0.04))', 
-                border: '1px solid rgba(37, 99, 235, 0.15)', 
+              <div className="p-4 mb-4" style={{
+                borderRadius: '16px',
+                background: 'linear-gradient(135deg, var(--accent-soft), rgba(59, 130, 246, 0.04))',
+                border: '1px solid rgba(37, 99, 235, 0.15)',
                 boxShadow: '0 10px 25px -5px rgba(37, 99, 235, 0.08)',
                 position: 'relative',
                 overflow: 'hidden'
               }}>
                 <div style={{ position: 'absolute', top: '-15%', right: '-10%', width: '40%', height: '80%', background: 'var(--accent)', opacity: 0.03, filter: 'blur(40px)', transform: 'rotate(-15deg)' }} />
-                
+
                 <div className="between mb-3">
                   <div className="cluster gap-3">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '38px', height: '38px', background: 'white', borderRadius: '12px', color: 'var(--accent)', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
@@ -269,7 +317,7 @@ export function POS({
                     {checkoutForm.loyaltyCard}
                   </div>
                 </div>
-                
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', padding: '0 4px' }}>
                   <div style={{ flex: 1, height: '1px', background: 'rgba(37, 99, 235, 0.1)' }}></div>
                   <span style={{ fontSize: '0.68rem', color: 'var(--text-soft)', fontWeight: 500 }}>Exclusive discount active</span>
@@ -287,7 +335,14 @@ export function POS({
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <UserPlus size={16} className="muted" />
-                  <span style={{ color: checkoutForm.customerName ? 'var(--text)' : 'var(--text-soft)' }}>{checkoutForm.customerName || 'Walk-in Customer'}</span>
+                  <div className="stack gap-0" style={{ alignItems: 'flex-start' }}>
+                    <span style={{ color: checkoutForm.customerName ? 'var(--text)' : 'var(--text-soft)' }}>{checkoutForm.customerName || 'Walk-in Customer'}</span>
+                    {checkoutForm.customerId && unpaidMetrics.totalUnpaid > 0 && (
+                      <span className="x-small font-strong" style={{ color: unpaidMetrics.isOverdue ? 'var(--danger)' : 'var(--text-soft)' }}>
+                        Unpaid: {formatCurrency(unpaidMetrics.totalUnpaid)} | Oldest: {unpaidMetrics.oldestUnpaidDays} days
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <Users size={16} className="muted" />
               </button>
@@ -361,13 +416,40 @@ export function POS({
               </div>
             )}
 
+            {checkoutForm.paymentMethod === 'credit' && (
+              <div className="stack gap-3 p-3 mt-1" style={{ borderRadius: '14px', background: 'var(--panel-strong)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+                <div className="between align-center">
+                  <span className="small">Bill Payment Period (Days)</span>
+                  <input
+                    className="input"
+                    type="number"
+                    placeholder="e.g. 30"
+                    style={{ width: '130px', textAlign: 'right', height: '34px', padding: '0 8px', fontSize: '0.9rem' }}
+                    value={checkoutForm.creditPeriodDays || ''}
+                    onChange={e => setCheckoutForm({ ...checkoutForm, creditPeriodDays: e.target.value })}
+                  />
+                </div>
+                <div className="between align-center">
+                  <span className="small">Store in Payment Times</span>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="e.g. 3 installments"
+                    style={{ width: '130px', textAlign: 'right', height: '34px', padding: '0 8px', fontSize: '0.9rem' }}
+                    value={checkoutForm.paymentTerms || ''}
+                    onChange={e => setCheckoutForm({ ...checkoutForm, paymentTerms: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
+
             {checkoutForm.paymentMethod === 'split' && (
               <div className="stack gap-3 p-3 mt-1" style={{ borderRadius: '14px', background: 'var(--panel-strong)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
                 <div className="between align-center" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '6px' }}>
                   <span className="muted small font-strong">Split Allocation</span>
                   <span className="x-small pill neutral-soft" style={{ fontSize: '0.7rem' }}>Total: {formatCurrency(cartTotal)}</span>
                 </div>
-                
+
                 <div className="stack gap-2">
                   <div className="between align-center">
                     <span className="small">Cash Portion</span>
@@ -431,21 +513,22 @@ export function POS({
               </div>
             )}
 
-            <button 
-              className="btn btn-primary w-full mt-2 glow-on-hover" 
-              type="submit" 
+            <button
+              className="btn btn-primary w-full mt-2 glow-on-hover"
+              type="submit"
               disabled={
-                busyAction === 'checkout' || 
-                cart.length === 0 || 
+                busyAction === 'checkout' ||
+                cart.length === 0 ||
+                (unpaidMetrics.isOverdue && (checkoutForm.paymentMethod === 'credit' || (checkoutForm.paymentMethod === 'split' && Number(checkoutForm.splitCredit || 0) > 0))) ||
                 (checkoutForm.paymentMethod === 'split' && Math.abs(cartTotal - (Number(checkoutForm.splitCash || 0) + Number(checkoutForm.splitCard || 0) + Number(checkoutForm.splitUpi || 0) + Number(checkoutForm.splitCredit || 0))) > 0.01)
-              } 
+              }
               style={{ height: '48px', borderRadius: '14px' }}
             >
               {busyAction === 'checkout' ? <div className="spinner" style={{ width: '20px', height: '20px' }}></div> : <Receipt size={18} />}
               {busyAction === 'checkout' ? 'Processing...' : (
                 checkoutForm.paymentMethod === 'split' && Math.abs(cartTotal - (Number(checkoutForm.splitCash || 0) + Number(checkoutForm.splitCard || 0) + Number(checkoutForm.splitUpi || 0) + Number(checkoutForm.splitCredit || 0))) > 0.01
-                ? `Remaining: ${formatCurrency(cartTotal - (Number(checkoutForm.splitCash || 0) + Number(checkoutForm.splitCard || 0) + Number(checkoutForm.splitUpi || 0) + Number(checkoutForm.splitCredit || 0)))}`
-                : `Finalize & Pay ${formatCurrency(cartTotal)}`
+                  ? `Remaining: ${formatCurrency(cartTotal - (Number(checkoutForm.splitCash || 0) + Number(checkoutForm.splitCard || 0) + Number(checkoutForm.splitUpi || 0) + Number(checkoutForm.splitCredit || 0)))}`
+                  : `Finalize & Pay ${formatCurrency(cartTotal)}`
               )}
             </button>
           </div>
@@ -623,13 +706,13 @@ export function POS({
                         border: '1px solid var(--border)',
                         marginTop: selectedItem.category || selectedItem.quantityInStock <= selectedItem.reorderLevel ? '24px' : '0px'
                       }}>
-                        <img 
-                          src={selectedItem.image || null} 
-                          style={{ 
-                            width: '100%', 
-                            height: '100%', 
+                        <img
+                          src={selectedItem.image || null}
+                          style={{
+                            width: '100%',
+                            height: '100%',
                             objectFit: 'cover'
-                          }} 
+                          }}
                         />
                       </div>
 
@@ -697,24 +780,24 @@ export function POS({
                     <div className="stack gap-2">
                       <span className="eyebrow muted x-small uppercase tracking-wider font-bold">Select Quantity</span>
                       <div className="cluster gap-4 wrap-row">
-                        <div className="qty-box" style={{ 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          background: 'var(--bg-soft)', 
-                          borderRadius: '999px', 
-                          padding: '6px', 
+                        <div className="qty-box" style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          background: 'var(--bg-soft)',
+                          borderRadius: '999px',
+                          padding: '6px',
                           border: '1px solid var(--border)',
                           boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.03)',
                           gap: '12px'
                         }}>
-                          <button 
+                          <button
                             type="button"
-                            className="qty-btn glow-on-hover" 
-                            style={{ 
-                              width: '38px', 
-                              height: '38px', 
-                              borderRadius: '50%', 
-                              background: 'var(--panel-strong)', 
+                            className="qty-btn glow-on-hover"
+                            style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '50%',
+                              background: 'var(--panel-strong)',
                               border: '1px solid var(--border)',
                               color: 'var(--text)',
                               display: 'flex',
@@ -723,7 +806,7 @@ export function POS({
                               cursor: 'pointer',
                               fontWeight: 'bold',
                               transition: 'all 0.2s ease'
-                            }} 
+                            }}
                             onClick={() => setModalQty(q => Math.max(1, q - 1))}
                           >
                             <Minus size={16} />
@@ -735,14 +818,14 @@ export function POS({
                             value={modalQty}
                             onChange={e => setModalQty(Math.max(1, parseInt(e.target.value) || 1))}
                           />
-                          <button 
+                          <button
                             type="button"
-                            className="qty-btn glow-on-hover" 
-                            style={{ 
-                              width: '38px', 
-                              height: '38px', 
-                              borderRadius: '50%', 
-                              background: 'var(--panel-strong)', 
+                            className="qty-btn glow-on-hover"
+                            style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '50%',
+                              background: 'var(--panel-strong)',
                               border: '1px solid var(--border)',
                               color: 'var(--text)',
                               display: 'flex',
@@ -751,7 +834,7 @@ export function POS({
                               cursor: 'pointer',
                               fontWeight: 'bold',
                               transition: 'all 0.2s ease'
-                            }} 
+                            }}
                             onClick={() => setModalQty(q => q + 1)}
                           >
                             <Plus size={16} />
@@ -765,13 +848,13 @@ export function POS({
                               key={val}
                               type="button"
                               className="pill neutral-soft glow-on-hover"
-                              style={{ 
-                                cursor: 'pointer', 
-                                border: '1px solid var(--border)', 
-                                background: 'var(--panel-strong)', 
-                                padding: '6px 12px', 
-                                fontSize: '0.75rem', 
-                                fontWeight: 700, 
+                              style={{
+                                cursor: 'pointer',
+                                border: '1px solid var(--border)',
+                                background: 'var(--panel-strong)',
+                                padding: '6px 12px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
                                 borderRadius: '10px',
                                 transition: 'all 0.2s'
                               }}
@@ -783,14 +866,14 @@ export function POS({
                           <button
                             type="button"
                             className="pill neutral-soft"
-                            style={{ 
-                              cursor: 'pointer', 
-                              border: '1px solid var(--border)', 
-                              background: 'var(--panel-strong)', 
-                              padding: '6px 12px', 
-                              fontSize: '0.75rem', 
-                              fontWeight: 700, 
-                              color: 'var(--danger)', 
+                            style={{
+                              cursor: 'pointer',
+                              border: '1px solid var(--border)',
+                              background: 'var(--panel-strong)',
+                              padding: '6px 12px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              color: 'var(--danger)',
                               borderRadius: '10px',
                               transition: 'all 0.2s'
                             }}
@@ -845,11 +928,11 @@ export function POS({
                       <button
                         type="button"
                         className="btn btn-primary glow-on-hover"
-                        style={{ 
-                          flex: 1.8, 
-                          padding: '12px 20px', 
-                          borderRadius: '12px', 
-                          fontSize: '0.95rem', 
+                        style={{
+                          flex: 1.8,
+                          padding: '12px 20px',
+                          borderRadius: '12px',
+                          fontSize: '0.95rem',
                           fontWeight: 800,
                           background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))',
                           boxShadow: 'var(--shadow-accent)',

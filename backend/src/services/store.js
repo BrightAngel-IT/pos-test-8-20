@@ -713,6 +713,25 @@ async function createSale(payload) {
     throw createError('Add at least one item before checking out.');
   }
 
+  if (payload.customerId && isDatabaseReady()) {
+    const customer = await Customer.findById(payload.customerId).lean();
+    if (customer) {
+      const allowedDays = Number(customer.paymentPeriodDays) || 30; // Default to 30 if undefined
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - allowedDays);
+
+      const overdueInvoices = await CustomerInvoice.find({
+        customerId: payload.customerId,
+        status: { $in: ['UNPAID', 'PARTIAL'] },
+        date: { $lt: cutoffDate }
+      }).lean();
+
+      if (overdueInvoices.length > 0) {
+        throw createError(`Customer has overdue payments (older than ${allowedDays} days). Cannot process new bill until they are cleared.`, 400);
+      }
+    }
+  }
+
   const branchName = payload.cashier?.branch || 'Main Branch';
   const products = await getProducts({ branch: branchName });
   const productMap = new Map(products.map((product) => [String(product._id), product]));
@@ -1628,7 +1647,10 @@ async function createPurchase(payload) {
         { $inc: { quantityInStock: Number(item.quantity) } },
         { upsert: true, new: true }
       );
-      await Product.findByIdAndUpdate(item.product, { latestPurchaseCost: Number(item.costPrice) });
+      await Product.findByIdAndUpdate(item.product, {
+        latestPurchaseCost: Number(item.costPrice),
+        costPrice: Number(item.costPrice)
+      });
     });
     await Promise.all(updatePromises);
 
@@ -1674,6 +1696,7 @@ async function createPurchase(payload) {
     const p = memoryStore.products.find(prod => String(prod._id) === String(item.product));
     if (p) {
       p.latestPurchaseCost = Number(item.costPrice);
+      p.costPrice = Number(item.costPrice);
     }
   });
 

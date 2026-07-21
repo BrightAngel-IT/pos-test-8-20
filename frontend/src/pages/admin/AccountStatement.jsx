@@ -118,8 +118,21 @@ export default function AccountStatement({ api, session, onNotice, company }) {
       }))
     ]
 
-    // Sort by date
-    transactions.sort((a, b) => new Date(a.date) - new Date(b.date))
+    // Sort by date (if same day, use precise createdAt time)
+    transactions.sort((a, b) => {
+      const dA = new Date(a.date)
+      const dB = new Date(b.date)
+      const isSameDay = dA.getFullYear() === dB.getFullYear() &&
+        dA.getMonth() === dB.getMonth() &&
+        dA.getDate() === dB.getDate()
+
+      if (isSameDay) {
+        const cA = new Date(a.raw.createdAt || a.date)
+        const cB = new Date(b.raw.createdAt || b.date)
+        return cA - cB
+      }
+      return dA - dB
+    })
 
     // Calculate running balance
     let balance = 0

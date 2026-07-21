@@ -165,7 +165,7 @@ export default function Customers({ api, session, onNotice }) {
               <tr>
                 <th style={{ paddingLeft: '24px' }}>Customer Profile</th>
                 <th>Contact Details</th>
-                <th>Purchasing Power</th>
+
                 <th>Address</th>
                 <th style={{ textAlign: 'right', paddingRight: '24px' }}>Actions</th>
               </tr>
@@ -189,12 +189,7 @@ export default function Customers({ api, session, onNotice }) {
                       </div>
                     </div>
                   </td>
-                  <td>
-                    <div className="stack">
-                      <span className="small font-strong success-text">{formatCurrency(cus.totalPurchases || 0)}</span>
-                      <span className="muted x-small">Lifetime Revenue</span>
-                    </div>
-                  </td>
+
                   <td>
                     <div className="cluster gap-2 muted small">
                       <MapPin size={14} />

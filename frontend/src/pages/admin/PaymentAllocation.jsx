@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   CreditCard,
   Search,
@@ -18,9 +19,12 @@ import { SectionHeading } from '../../components/SectionHeading'
 import { formatCurrency, authConfig } from '../../utils'
 
 export function PaymentAllocation({ api, session, onNotice }) {
-  const [settlementMode, setSettlementMode] = useState('customer') // 'customer' or 'supplier'
+  const location = useLocation()
+  const isSuperAdmin = session?.user?.role === 'super_admin'
+  const initialMode = location.state?.mode || (isSuperAdmin ? 'supplier' : 'customer')
+  const [settlementMode, setSettlementMode] = useState(initialMode)
   const [entities, setEntities] = useState([]) // Customers or Suppliers
-  const [selectedEntityId, setSelectedEntityId] = useState('')
+  const [selectedEntityId, setSelectedEntityId] = useState(location.state?.entityId || '')
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -41,10 +45,6 @@ export function PaymentAllocation({ api, session, onNotice }) {
         const endpoint = settlementMode === 'customer' ? '/customers' : '/suppliers'
         const res = await api.get(endpoint, authConfig(session.token))
         setEntities(res.data)
-        // Reset selection when mode changes
-        setSelectedEntityId('')
-        setInvoices([])
-        setAllocations({})
       } catch (err) {
         onNotice({ type: 'error', text: `Failed to load ${settlementMode}s` })
       }
@@ -170,24 +170,6 @@ export function PaymentAllocation({ api, session, onNotice }) {
           </div>
         </div>
 
-        <div className="cluster p-1 panel-strong" style={{ background: 'var(--bg-soft)', borderRadius: '14px', border: '1px solid var(--border)' }}>
-          <button
-            className={`btn sm ${settlementMode === 'customer' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setSettlementMode('customer')}
-            style={{ borderRadius: '10px', minWidth: '120px' }}
-          >
-            <Users size={16} />
-            Customer
-          </button>
-          <button
-            className={`btn sm ${settlementMode === 'supplier' ? 'btn-primary' : 'btn-ghost'}`}
-            style={{ borderRadius: '10px', minWidth: '120px', background: settlementMode === 'supplier' ? 'var(--accent)' : 'transparent' }}
-            onClick={() => setSettlementMode('supplier')}
-          >
-            <Building2 size={16} />
-            Supplier
-          </button>
-        </div>
       </div>
 
       <div className="grid-2 gap-6 align-start">

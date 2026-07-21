@@ -12,7 +12,8 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
-  FileText
+  FileText,
+  DollarSign
 } from 'lucide-react'
 import { SectionHeading } from '../../components/SectionHeading'
 import { authConfig, readErrorMessage } from '../../utils'
@@ -243,6 +244,7 @@ export default function Suppliers({ api, session, onNotice }) {
                   </td>
                   <td style={{ textAlign: 'right', paddingRight: '24px' }}>
                     <div className="cluster gap-2 justify-end">
+                      <button className="icon-btn ghost hover-accent" title="Settlements" onClick={() => navigate('/payments', { state: { mode: 'supplier', entityId: sup._id } })}><DollarSign size={16} /></button>
                       <button className="icon-btn ghost hover-accent" title="Statement of Account" onClick={() => navigate(`/accounts/supplier/${sup._id}`)}><FileText size={16} /></button>
                       <button className="icon-btn ghost hover-accent" onClick={() => handleEdit(sup)}><Edit size={16} /></button>
                       <button className="icon-btn ghost hover-danger" onClick={() => handleDelete(sup._id)}><Trash2 size={16} /></button>
