@@ -1038,8 +1038,9 @@ function createTrend(range, sales) {
       const date = new Date(now);
       date.setDate(now.getDate() - index);
       date.setHours(0, 0, 0, 0);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       buckets.push({
-        key: date.toISOString().slice(0, 10),
+        key,
         label: date.toLocaleDateString('en-US', { weekday: 'short' }),
         revenue: 0,
         orders: 0,
@@ -1049,8 +1050,9 @@ function createTrend(range, sales) {
     for (let index = 7; index >= 0; index -= 1) {
       const date = startOfWeek(now);
       date.setDate(date.getDate() - index * 7);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       buckets.push({
-        key: date.toISOString().slice(0, 10),
+        key,
         label: `W${date.toLocaleDateString('en-US', { month: 'short' })} ${date.getDate()}`,
         revenue: 0,
         orders: 0,
@@ -1085,9 +1087,10 @@ function createTrend(range, sales) {
     let key = '';
 
     if (range === 'daily') {
-      key = saleDate.toISOString().slice(0, 10);
+      key = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}-${String(saleDate.getDate()).padStart(2, '0')}`;
     } else if (range === 'weekly') {
-      key = startOfWeek(saleDate).toISOString().slice(0, 10);
+      const wDate = startOfWeek(saleDate);
+      key = `${wDate.getFullYear()}-${String(wDate.getMonth() + 1).padStart(2, '0')}-${String(wDate.getDate()).padStart(2, '0')}`;
     } else if (range === 'monthly') {
       key = `${saleDate.getFullYear()}-${saleDate.getMonth() + 1}`;
     } else {
@@ -1198,7 +1201,7 @@ async function getSalesReport(range = 'weekly', branchFilter = null) {
 
   const topSellingProducts = [...productSalesMap.values()]
     .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
+    .slice(0, 50);
 
   return {
     range: validRange,
@@ -1296,6 +1299,40 @@ async function getOverviewData(user, branchFilter = null) {
     });
   });
 
+  const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const currentYear = now.getFullYear();
+  let monthlySales = [];
+  let branchMonthlySales = [];
+  let allBranches = [];
+
+  if (activeBranch) {
+    monthlySales = monthLabels.map((month, index) => {
+      const salesForMonth = sales.filter(s => {
+        const d = new Date(s.createdAt);
+        return d.getFullYear() === currentYear && d.getMonth() === index;
+      });
+      return {
+        month,
+        revenue: formatCurrencyAmount(salesForMonth.reduce((sum, s) => sum + Number(s.total), 0))
+      };
+    });
+  } else {
+    allBranches = [...new Set(sales.map(s => s.branch || 'Unknown'))];
+    branchMonthlySales = monthLabels.map((month, index) => {
+      const salesForMonth = sales.filter(s => {
+        const d = new Date(s.createdAt);
+        return d.getFullYear() === currentYear && d.getMonth() === index;
+      });
+
+      const monthData = { month };
+      allBranches.forEach(branch => {
+        const branchSales = salesForMonth.filter(s => (s.branch || 'Unknown') === branch);
+        monthData[branch] = formatCurrencyAmount(branchSales.reduce((sum, s) => sum + Number(s.total), 0));
+      });
+      return monthData;
+    });
+  }
+
   const recentSales = sales.slice(0, 6).map((sale) => ({
     ...sale,
     cashierName: sale.cashier?.name || 'Unknown cashier',
@@ -1321,6 +1358,9 @@ async function getOverviewData(user, branchFilter = null) {
       ),
       activeUsers: users.length,
     },
+    monthlySales,
+    branchMonthlySales,
+    allBranches,
     lowStockProducts,
     products: products.map((product) => ({
       ...product,

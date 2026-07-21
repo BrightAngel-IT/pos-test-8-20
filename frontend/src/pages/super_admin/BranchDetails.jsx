@@ -19,9 +19,10 @@ import {
   Calendar,
   Ruler,
   Image as ImageIcon,
-  Users
+  Users,
+  ArrowRight
 } from 'lucide-react'
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts'
 import { MetricCard } from '../../components/MetricCard'
 import { SectionHeading } from '../../components/SectionHeading'
 import { formatCurrency, formatDate, authConfig } from '../../utils'
@@ -389,9 +390,9 @@ export function BranchDetails({ api, session }) {
               <section className="metric-grid">
                 <MetricCard
                   icon={TrendingUp}
-                  title="Branch Revenue (7d)"
-                  value={formatCurrency(overview?.metrics.revenueWeekly ?? 0)}
-                  helper={`Monthly target velocity: ${formatCurrency(overview?.metrics.revenueMonthly ?? 0)}`}
+                  title="Branch Monthly Revenue"
+                  value={formatCurrency(overview?.metrics.revenueMonthly ?? 0)}
+                  helper="Current month sales"
                 />
                 <MetricCard
                   icon={Warehouse}
@@ -437,6 +438,26 @@ export function BranchDetails({ api, session }) {
                   ) : (
                     <div className="stack align-center justify-center h-full muted small">No sales trend data available for this branch.</div>
                   )}
+                </div>
+              </div>
+
+              {/* Monthly Sales Trend */}
+              <div className="panel p-6 stack gap-5 glass-panel">
+                <SectionHeading title="Monthly Sales Trend" text="Revenue progression for the current year." />
+                <div style={{ width: '100%', height: '300px' }}>
+                  <ResponsiveContainer>
+                    <BarChart data={overview?.monthlySales || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                      <XAxis dataKey="month" stroke="var(--text-soft)" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis stroke="var(--text-soft)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '8px' }}
+                        itemStyle={{ color: 'var(--text)' }}
+                        cursor={{ fill: 'var(--accent)', opacity: 0.1 }}
+                      />
+                      <Bar dataKey="revenue" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
 
@@ -514,7 +535,12 @@ export function BranchDetails({ api, session }) {
               {/* Latest Invoices */}
               <div className="panel p-5 stack gap-4 glass-panel">
                 <div className="between wrap-row gap-4 align-center">
-                  <SectionHeading title="Latest Invoices" text="Recent storefront transactions." />
+                  <div className="cluster gap-2">
+                    <SectionHeading title="Latest Invoices" text="Recent storefront transactions." />
+                    <button className="icon-btn hover-accent" style={{ background: 'var(--bg-soft)', borderRadius: '8px', padding: '6px' }} onClick={() => navigate('/super-admin/reports', { state: { branch: branchName } })} title="See all invoices for this branch">
+                      <ArrowRight size={16} />
+                    </button>
+                  </div>
                   <div className="cluster gap-3 wrap-row" style={{ background: 'var(--panel-strong)', padding: '6px 10px', borderRadius: '12px', border: '1px solid var(--border)' }}>
                     <div className="search-input compact" style={{ width: '200px', background: 'var(--bg-soft)' }}>
                       <Search size={14} />
@@ -566,7 +592,7 @@ export function BranchDetails({ api, session }) {
                             <FileText size={18} className="muted" />
                           </div>
                           <div className="stack gap-1">
-                            <strong style={{ fontSize: '0.95rem' }}>{s.invoiceNumber}</strong>
+                            <strong style={{ fontSize: '0.95rem' }}>{s.invoiceNumber.replace(/^saayi-?/i, '').replace(/^c-/i, 'INVC-')}</strong>
                             <div className="cluster gap-3 muted small" style={{ fontSize: '0.75rem' }}>
                               <span className="cluster gap-1"><Calendar size={12} /> {formatDate(s.createdAt)}</span>
                               <span className="cluster gap-1"><Users size={12} /> {s.cashierName}</span>

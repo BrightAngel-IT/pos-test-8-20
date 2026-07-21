@@ -277,7 +277,7 @@ export default function SalesHistory({ api, session, onNotice, company }) {
                       <div className="avatar sm neutral-soft" style={{ width: '32px', height: '32px', borderRadius: '8px' }}>
                         <FileText size={16} className="muted" />
                       </div>
-                      <strong className="small font-mono">{sale.invoiceNumber}</strong>
+                      <strong className="small font-mono">{sale.invoiceNumber.replace(/^saayi-?/i, '').replace(/^c-/i, 'INVC-')}</strong>
                     </div>
                   </td>
                   <td style={{ borderBottom: idx === paginatedSales.length - 1 ? 'none' : '1px solid var(--border-soft)' }}>

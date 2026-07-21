@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   FileText
 } from 'lucide-react'
+import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip } from 'recharts'
 import { MetricCard } from '../../components/MetricCard'
 import { SectionHeading } from '../../components/SectionHeading'
 import { formatCurrency, formatDate, authConfig } from '../../utils'
@@ -54,9 +55,9 @@ export function SuperAdminDashboard({ api, session }) {
       <section className="metric-grid">
         <MetricCard
           icon={TrendingUp}
-          title="Consolidated Rev (7d)"
-          value={formatCurrency(overview?.metrics.revenueWeekly ?? 0)}
-          helper={`Monthly velocity: ${formatCurrency(overview?.metrics.revenueMonthly ?? 0)}`}
+          title="Consolidated Monthly Rev"
+          value={formatCurrency(overview?.metrics.revenueMonthly ?? 0)}
+          helper="Current month sales"
         />
         <MetricCard
           icon={Warehouse}
@@ -154,12 +155,19 @@ export function SuperAdminDashboard({ api, session }) {
           </div>
         </section>
 
+
+
         {/* Recent Operations */}
         <section className="panel p-6 stack gap-5">
-          <SectionHeading
-            title="Recent Activity"
-            text="Latest transactions across all terminals."
-          />
+          <div className="cluster gap-2">
+            <SectionHeading
+              title="Recent Activity"
+              text="Latest transactions across all terminals."
+            />
+            <button className="icon-btn hover-accent" style={{ background: 'var(--bg-soft)', borderRadius: '8px', padding: '6px' }} onClick={() => navigate('/super-admin/reports')} title="See all invoices">
+              <ArrowRight size={16} />
+            </button>
+          </div>
           <div className="stack gap-3">
             {(overview?.recentSales || []).slice(0, 7).map((sale) => (
               <div 
@@ -176,7 +184,7 @@ export function SuperAdminDashboard({ api, session }) {
                 <div className="stack gap-1">
                   <div className="cluster gap-2">
                     <FileText size={14} className="muted" />
-                    <strong style={{ fontSize: '0.9rem' }}>{sale.invoiceNumber}</strong>
+                    <strong style={{ fontSize: '0.9rem' }}>{sale.invoiceNumber.replace(/^saayi-?/i, '').replace(/^c-/i, 'INVC-')}</strong>
                   </div>
                   <p className="muted small" style={{ fontSize: '0.75rem' }}>
                     🏢 {sale.branch} · 👤 {sale.cashierName}
@@ -191,6 +199,49 @@ export function SuperAdminDashboard({ api, session }) {
         </section>
 
       </div>
+
+      {/* Monthly Sales Trend */}
+      <section className="panel p-6 stack gap-5 mt-6">
+        <SectionHeading title="Monthly Sales Trend" text="Revenue progression for the current year across all branches." />
+        <div style={{ width: '100%', height: '300px' }}>
+          <ResponsiveContainer>
+            <BarChart data={overview?.branchMonthlySales || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+              <XAxis dataKey="month" stroke="var(--text-soft)" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis stroke="var(--text-soft)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+              <Tooltip content={({ active, payload, label }) => {
+                if (active && payload && payload.length) {
+                  return (
+                    <div style={{ backgroundColor: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px' }}>
+                      <p className="font-strong mb-2">{label}</p>
+                      {payload.map((entry, index) => (
+                        <div key={index} className="cluster gap-2 mb-1">
+                          <div style={{ width: '12px', height: '12px', backgroundColor: entry.color, borderRadius: '3px' }} />
+                          <span className="small">{entry.name} : {entry.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+                return null;
+              }} cursor={{ fill: 'var(--accent)', opacity: 0.1 }} />
+              {(overview?.allBranches || []).map((branch, index) => {
+                const colors = ['var(--accent)', '#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
+                return (
+                  <Bar 
+                    key={branch} 
+                    dataKey={branch} 
+                    name={branch}
+                    fill={colors[index % colors.length]} 
+                    radius={[4, 4, 0, 0]} 
+                  />
+                );
+              })}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
     </div>
   )
 }

@@ -33,6 +33,11 @@ export function Reports({ report, reportRange, setReportRange }) {
   const [ledgerSearch, setLedgerSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
+
+  const [catPage, setCatPage] = useState(1)
+  const [skuPage, setSkuPage] = useState(1)
+  const catItemsPerPage = 7
+  const skuItemsPerPage = 5
   const filteredSales = useMemo(() => {
     const sales = report?.recentSales || []
     if (!ledgerSearch) return sales
@@ -51,6 +56,18 @@ export function Reports({ report, reportRange, setReportRange }) {
   const paginatedSales = useMemo(() => {
     return filteredSales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
   }, [filteredSales, currentPage])
+
+  const catBreakdown = report?.categoryBreakdown || []
+  const totalCatPages = Math.ceil(catBreakdown.length / catItemsPerPage)
+  const paginatedCats = useMemo(() => {
+    return catBreakdown.slice((catPage - 1) * catItemsPerPage, catPage * catItemsPerPage)
+  }, [catBreakdown, catPage])
+
+  const topSkus = report?.topSellingProducts || []
+  const totalSkuPages = Math.ceil(topSkus.length / skuItemsPerPage)
+  const paginatedSkus = useMemo(() => {
+    return topSkus.slice((skuPage - 1) * skuItemsPerPage, skuPage * skuItemsPerPage)
+  }, [topSkus, skuPage])
 
   return (
     <div className="stack gap-6 animate-fade">
@@ -221,7 +238,7 @@ export function Reports({ report, reportRange, setReportRange }) {
               </tr>
             </thead>
             <tbody>
-              {(report?.topSellingProducts || []).map((p) => (
+              {paginatedSkus.map((p) => (
                 <tr key={p.productId} className="table-row-hover">
                   <td style={{ paddingLeft: '24px' }}>
                     <div className="cluster gap-3">
@@ -244,13 +261,24 @@ export function Reports({ report, reportRange, setReportRange }) {
                   </td>
                 </tr>
               ))}
-              {(report?.topSellingProducts || []).length === 0 && (
+              {paginatedSkus.length === 0 && (
                 <tr>
                   <td colSpan="3" className="text-center p-8 muted small">No sales data recorded yet.</td>
                 </tr>
               )}
             </tbody>
           </table>
+          {totalSkuPages > 1 && (
+            <div className="p-3">
+              <Pagination 
+                currentPage={skuPage} 
+                totalPages={totalSkuPages} 
+                onPageChange={setSkuPage} 
+                totalItems={topSkus.length} 
+                itemsPerPage={skuItemsPerPage} 
+              />
+            </div>
+          )}
         </div>
 
         {/* Breakdown Lists */}
@@ -266,8 +294,8 @@ export function Reports({ report, reportRange, setReportRange }) {
                 <span className="eyebrow" style={{ fontSize: '0.65rem' }}>Top Categories</span>
               </div>
               <div className="stack gap-2">
-                {(report?.categoryBreakdown || []).slice(0, 4).map((entry) => {
-                  const maxVal = Math.max(...(report?.categoryBreakdown || []).map(b => b.value));
+                {paginatedCats.map((entry) => {
+                  const maxVal = Math.max(...catBreakdown.map(b => b.value));
                   const percentage = (entry.value / maxVal) * 100;
                   return (
                     <div key={entry.label} className="stack gap-1">
@@ -282,6 +310,15 @@ export function Reports({ report, reportRange, setReportRange }) {
                   );
                 })}
               </div>
+              {totalCatPages > 1 && (
+                <Pagination 
+                  currentPage={catPage} 
+                  totalPages={totalCatPages} 
+                  onPageChange={setCatPage} 
+                  totalItems={catBreakdown.length} 
+                  itemsPerPage={catItemsPerPage} 
+                />
+              )}
             </div>
             
             <div className="stack gap-3 pt-4" style={{ borderTop: '1px dashed var(--border)' }}>
@@ -337,7 +374,7 @@ export function Reports({ report, reportRange, setReportRange }) {
                     <td style={{ paddingLeft: '24px' }}>
                       <div className="cluster gap-2">
                         <FileText size={14} className="muted" />
-                        <strong className="small">{sale.invoiceNumber}</strong>
+                        <strong className="small">{sale.invoiceNumber.replace(/^saayi-?/i, '').replace(/^c-/i, 'INVC-')}</strong>
                       </div>
                     </td>
                     <td>

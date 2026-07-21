@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   BarChart3,
   Receipt,
@@ -18,15 +19,21 @@ import { formatCurrency, formatDate, exportToCSV, authConfig } from '../../utils
 import { Pagination } from '../../components/Pagination'
 
 export function SuperAdminReports({ api, session }) {
+  const location = useLocation()
   const ranges = ['daily', 'weekly', 'monthly', 'annual']
   const [reportRange, setReportRange] = useState('weekly')
-  const [selectedBranch, setSelectedBranch] = useState('') // empty string means "All Branches"
+  const [selectedBranch, setSelectedBranch] = useState(location.state?.branch || '') // empty string means "All Branches"
   const [branches, setBranches] = useState([])
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
   const [ledgerSearch, setLedgerSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
+
+  const [catPage, setCatPage] = useState(1)
+  const [skuPage, setSkuPage] = useState(1)
+  const catItemsPerPage = 7
+  const skuItemsPerPage = 5
 
   useEffect(() => {
     async function loadBranches() {
@@ -79,6 +86,18 @@ export function SuperAdminReports({ api, session }) {
   const paginatedSales = useMemo(() => {
     return filteredSales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
   }, [filteredSales, currentPage])
+
+  const catBreakdown = report?.categoryBreakdown || []
+  const totalCatPages = Math.ceil(catBreakdown.length / catItemsPerPage)
+  const paginatedCats = useMemo(() => {
+    return catBreakdown.slice((catPage - 1) * catItemsPerPage, catPage * catItemsPerPage)
+  }, [catBreakdown, catPage])
+
+  const topSkus = report?.topSellingProducts || []
+  const totalSkuPages = Math.ceil(topSkus.length / skuItemsPerPage)
+  const paginatedSkus = useMemo(() => {
+    return topSkus.slice((skuPage - 1) * skuItemsPerPage, skuPage * skuItemsPerPage)
+  }, [topSkus, skuPage])
 
   if (loading && !report) {
     return (
@@ -217,121 +236,146 @@ export function SuperAdminReports({ api, session }) {
         </div>
       </div>
 
-      {/* Ledger & Category Split */}
-      <div className="grid-2 gap-6" style={{ gridTemplateColumns: '2.5fr 1.5fr' }}>
-        
-        {/* Ledger Details */}
-        <div className="panel p-6 stack gap-5">
-          <div className="between wrap-row align-center">
-            <SectionHeading title="General Sales Ledger" text="Transaction logs matching the criteria." />
-            <div className="search-input small" style={{ width: '100%', maxWidth: '240px' }}>
-              <input
-                type="text"
-                placeholder="Search invoice, customer, branch..."
-                value={ledgerSearch}
-                onChange={(e) => setLedgerSearch(e.target.value)}
-              />
-            </div>
-          </div>
-
+      {/* Category Split & Top Products */}
+      <div className="grid-2 gap-6">
+        {/* Category Breakdown */}
+        <div className="panel p-6 stack gap-5" style={{ alignSelf: 'start' }}>
+          <SectionHeading title="Category Volume" text="Revenue performance by product group." />
           <div className="stack gap-3">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Invoice No</th>
-                  <th>Date</th>
-                  <th>Branch</th>
-                  <th>Customer</th>
-                  <th>Cashier</th>
-                  <th>Refund status</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedSales.map((sale) => (
-                  <tr key={sale._id}>
-                    <td>
-                      <div className="cluster gap-2 align-center">
-                        <FileText size={14} className="muted" />
-                        <strong>{sale.invoiceNumber}</strong>
-                      </div>
-                    </td>
-                    <td>{formatDate(sale.createdAt)}</td>
-                    <td><span className="rack-tag">{sale.branch || 'Main Branch'}</span></td>
-                    <td>{sale.customerName}</td>
-                    <td>{sale.cashierName}</td>
-                    <td>
-                      <span className={`pill ${sale.status === 'PAID' ? 'success-soft' : 'warning-soft'}`} style={{ fontSize: '0.65rem' }}>
-                        {sale.status}
-                      </span>
-                    </td>
-                    <td><strong>{formatCurrency(sale.total)}</strong></td>
-                  </tr>
-                ))}
-                {paginatedSales.length === 0 && (
-                  <tr>
-                    <td colSpan="7" style={{ textAlign: 'center', padding: '36px 0' }} className="muted">No sales records match this query.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-
-            {totalPages > 1 && (
-              <div className="pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-                <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+            {paginatedCats.map((cat, idx) => (
+              <div key={idx} className="stack gap-2">
+                <div className="between small">
+                  <strong>{cat.label}</strong>
+                  <span className="accent-text font-bold">{formatCurrency(cat.value)}</span>
+                </div>
+                <div style={{ height: '8px', background: 'var(--bg-soft)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div 
+                    style={{ 
+                      height: '100%', 
+                      background: 'linear-gradient(90deg, var(--accent), var(--accent-strong))', 
+                      width: `${report?.summary.totalRevenue ? (cat.value / report.summary.totalRevenue) * 100 : 0}%` 
+                    }} 
+                  />
+                </div>
+              </div>
+            ))}
+            {paginatedCats.length === 0 && <p className="muted small text-center">No categories recorded.</p>}
+            
+            {totalCatPages > 1 && (
+              <div className="pt-3 mt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                <Pagination 
+                  currentPage={catPage} 
+                  totalPages={totalCatPages} 
+                  onPageChange={setCatPage} 
+                  totalItems={catBreakdown.length} 
+                  itemsPerPage={catItemsPerPage} 
+                />
               </div>
             )}
           </div>
         </div>
 
-        {/* Category Split & Top Products */}
-        <div className="stack gap-6">
-          {/* Category Breakdown */}
-          <div className="panel p-6 stack gap-5">
-            <SectionHeading title="Category Volume" text="Revenue performance by product group." />
-            <div className="stack gap-3">
-              {(report?.categoryBreakdown || []).map((cat, idx) => (
-                <div key={idx} className="stack gap-2">
-                  <div className="between small">
-                    <strong>{cat.label}</strong>
-                    <span className="accent-text font-bold">{formatCurrency(cat.value)}</span>
-                  </div>
-                  <div style={{ height: '8px', background: 'var(--bg-soft)', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div 
-                      style={{ 
-                        height: '100%', 
-                        background: 'linear-gradient(90deg, var(--accent), var(--accent-strong))', 
-                        width: `${report?.summary.totalRevenue ? (cat.value / report.summary.totalRevenue) * 100 : 0}%` 
-                      }} 
-                    />
+        {/* Top Selling Products */}
+        <div className="panel p-6 stack gap-5" style={{ alignSelf: 'start' }}>
+          <SectionHeading title="Top Velocity SKUs" text="High velocity products by billing contribution." />
+          <div className="stack gap-3">
+            {paginatedSkus.map((p, idx) => (
+              <div key={idx} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '16px', border: '1px solid var(--border)' }}>
+                <div className="cluster gap-3">
+                  <img src={p.image} alt={p.name} className="thumb" style={{ borderRadius: '8px' }} />
+                  <div>
+                    <strong style={{ fontSize: '0.9rem' }}>{p.name}</strong>
+                    <p className="muted small" style={{ fontSize: '0.75rem' }}>{p.quantity} units sold · {p.category}</p>
                   </div>
                 </div>
-              ))}
-              {(report?.categoryBreakdown || []).length === 0 && <p className="muted small text-center">No categories recorded.</p>}
-            </div>
+                <strong className="accent-text" style={{ fontSize: '0.9rem' }}>{formatCurrency(p.revenue)}</strong>
+              </div>
+            ))}
+            {paginatedSkus.length === 0 && <p className="muted small text-center">No velocity data.</p>}
+            
+            {totalSkuPages > 1 && (
+              <div className="pt-3 mt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                <Pagination 
+                  currentPage={skuPage} 
+                  totalPages={totalSkuPages} 
+                  onPageChange={setSkuPage} 
+                  totalItems={topSkus.length} 
+                  itemsPerPage={skuItemsPerPage} 
+                />
+              </div>
+            )}
           </div>
+        </div>
+      </div>
 
-          {/* Top Selling Products */}
-          <div className="panel p-6 stack gap-5">
-            <SectionHeading title="Top Velocity SKUs" text="High velocity products by billing contribution." />
-            <div className="stack gap-3">
-              {(report?.topSellingProducts || []).map((p, idx) => (
-                <div key={idx} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '16px', border: '1px solid var(--border)' }}>
-                  <div className="cluster gap-3">
-                    <img src={p.image} alt={p.name} className="thumb" style={{ borderRadius: '8px' }} />
-                    <div>
-                      <strong style={{ fontSize: '0.9rem' }}>{p.name}</strong>
-                      <p className="muted small" style={{ fontSize: '0.75rem' }}>{p.quantity} units sold · {p.category}</p>
-                    </div>
-                  </div>
-                  <strong className="accent-text" style={{ fontSize: '0.9rem' }}>{formatCurrency(p.revenue)}</strong>
-                </div>
-              ))}
-              {(report?.topSellingProducts || []).length === 0 && <p className="muted small text-center">No velocity data.</p>}
-            </div>
+      {/* Ledger Details */}
+      <div className="panel p-6 stack gap-5 mt-6">
+        <div className="between wrap-row align-center">
+          <SectionHeading title="General Sales Ledger" text="Transaction logs matching the criteria." />
+          <div className="search-input small" style={{ width: '100%', maxWidth: '240px' }}>
+            <input
+              type="text"
+              placeholder="Search invoice, customer, branch..."
+              value={ledgerSearch}
+              onChange={(e) => setLedgerSearch(e.target.value)}
+            />
           </div>
         </div>
 
+        <div className="stack gap-3">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Invoice No</th>
+                <th>Date</th>
+                <th>Branch</th>
+                <th>Customer</th>
+                <th>Cashier</th>
+                <th>Refund status</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedSales.map((sale) => (
+                <tr key={sale._id}>
+                  <td>
+                    <div className="cluster gap-2 align-center">
+                      <FileText size={14} className="muted" />
+                      <strong>{sale.invoiceNumber.replace(/^saayi-?/i, '').replace(/^c-/i, 'INVC-')}</strong>
+                    </div>
+                  </td>
+                  <td>{formatDate(sale.createdAt)}</td>
+                  <td><span className="rack-tag">{sale.branch || 'Main Branch'}</span></td>
+                  <td>{sale.customerName}</td>
+                  <td>{sale.cashierName}</td>
+                  <td>
+                    <span className={`pill ${sale.status === 'PAID' ? 'success-soft' : 'warning-soft'}`} style={{ fontSize: '0.65rem' }}>
+                      {sale.status}
+                    </span>
+                  </td>
+                  <td><strong>{formatCurrency(sale.total)}</strong></td>
+                </tr>
+              ))}
+              {paginatedSales.length === 0 && (
+                <tr>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '36px 0' }} className="muted">No sales records match this query.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {totalPages > 1 && (
+            <div className="pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+              <Pagination 
+                currentPage={currentPage} 
+                totalPages={totalPages} 
+                onPageChange={setCurrentPage} 
+                totalItems={filteredSales.length} 
+                itemsPerPage={itemsPerPage} 
+              />
+            </div>
+          )}
+        </div>
       </div>
 
     </div>

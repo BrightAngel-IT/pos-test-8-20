@@ -87,7 +87,7 @@ export default function Invoices({ api, session, onNotice, sales: initialSales =
         })
         .map(s => ({
           _id: s._id,
-          invoiceNo: s.invoiceNumber,
+          invoiceNo: String(s.invoiceNumber || '').replace(/^saayi-?/i, '').replace(/^c-/i, 'INVC-'),
           customerName: s.customerName,
           totalAmount: s.total,
           balanceAmount: s.balanceAmount ?? (s.paymentMethod === 'credit' ? s.total : 0),
@@ -264,7 +264,10 @@ export default function Invoices({ api, session, onNotice, sales: initialSales =
                   <td style={{ paddingLeft: '24px' }}>
                     <div className="cluster gap-2">
                       <FileText size={14} className="muted" />
-                      <strong className="small font-mono">{inv.invoiceNo}</strong>
+                      <strong className="small font-mono">
+                        {inv.invoiceNo.replace(/^saayi-?/i, '').replace(/^c-/i, 'INVC-')}
+                        {activeTab === 'customer' && inv.raw.cashier ? ` - ${inv.raw.cashier.name}` : ''}
+                      </strong>
                     </div>
                   </td>
                   <td>
@@ -276,7 +279,7 @@ export default function Invoices({ api, session, onNotice, sales: initialSales =
                     }}>
                       <strong className="small">{inv.customerName}</strong>
                       <span className="muted x-small">
-                        {activeTab === 'customer' && inv.raw.cashier ? `By: ${inv.raw.cashier.name}` : `Transaction: ${inv.type}`}
+                        {`Transaction: ${inv.type}`}
                       </span>
                     </div>
                   </td>

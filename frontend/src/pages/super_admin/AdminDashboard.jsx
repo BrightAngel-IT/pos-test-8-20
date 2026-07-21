@@ -14,6 +14,17 @@ import {
 import { MetricCard } from '../../components/MetricCard'
 import { SectionHeading } from '../../components/SectionHeading'
 import { formatCurrency, formatDate } from '../../utils'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts'
+
+const CHART_COLORS = [
+  'var(--accent)',
+  'var(--info)',
+  'var(--success)',
+  'var(--warning)',
+  'var(--danger)',
+  '#8884d8',
+  '#82ca9d'
+];
 
 export function AdminDashboard({ overview, session, startTransition }) {
   const navigate = useNavigate()
@@ -35,9 +46,9 @@ export function AdminDashboard({ overview, session, startTransition }) {
         />
         <MetricCard
           icon={TrendingUp}
-          title="Revenue (7d)"
-          value={formatCurrency(overview?.metrics.revenueWeekly ?? 0)}
-          helper={`Monthly velocity: ${formatCurrency(overview?.metrics.revenueMonthly ?? 0)}`}
+          title="Monthly Revenue"
+          value={formatCurrency(overview?.metrics.revenueMonthly ?? 0)}
+          helper="Current month sales"
         />
         <MetricCard
           icon={AlertCircle}
@@ -133,7 +144,7 @@ export function AdminDashboard({ overview, session, startTransition }) {
                 <div className="stack gap-1">
                   <div className="cluster gap-2">
                     <FileText size={14} className="muted" />
-                    <strong style={{ fontSize: '0.95rem' }}>{sale.invoiceNumber}</strong>
+                    <strong style={{ fontSize: '0.95rem' }}>{sale.invoiceNumber.replace(/^saayi-?/i, '').replace(/^c-/i, 'INVC-')}</strong>
                   </div>
                   <p className="muted small">
                     {sale.cashierName} · {formatDate(sale.createdAt)}
@@ -143,6 +154,28 @@ export function AdminDashboard({ overview, session, startTransition }) {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="panel p-6 stack gap-5 glass-panel mt-6">
+        <SectionHeading title="Branch-wise Monthly Sales" text="Revenue progression compared across branches for the current year." />
+        <div style={{ width: '100%', height: '350px' }}>
+          <ResponsiveContainer>
+            <BarChart data={overview?.branchMonthlySales || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+              <XAxis dataKey="month" stroke="var(--text-soft)" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis stroke="var(--text-soft)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+              <Tooltip
+                contentStyle={{ backgroundColor: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '8px' }}
+                itemStyle={{ color: 'var(--text)' }}
+                cursor={{ fill: 'var(--accent)', opacity: 0.1 }}
+              />
+              <Legend wrapperStyle={{ paddingTop: '20px' }} />
+              {(overview?.allBranches || []).map((branch, index) => (
+                <Bar key={branch} dataKey={branch} fill={CHART_COLORS[index % CHART_COLORS.length]} radius={[4, 4, 0, 0]} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </section>
     </div>

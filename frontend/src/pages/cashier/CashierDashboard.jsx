@@ -148,7 +148,7 @@ export function CashierDashboard({ overview, session }) {
                   <FileText size={16} />
                 </div>
                 <div>
-                  <a href="#" onClick={(e) => { e.preventDefault(); navigate(`/invoice/${sale._id}`) }} style={{ fontWeight: 700, color: 'var(--text)' }}>{sale.invoiceNumber}</a>
+                  <a href="#" onClick={(e) => { e.preventDefault(); navigate(`/invoice/${sale._id}`) }} style={{ fontWeight: 700, color: 'var(--text)' }}>{sale.invoiceNumber.replace(/^saayi-?/i, '').replace(/^c-/i, 'INVC-')}</a>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-soft)', marginTop: '4px' }}>{sale.customerName || 'Walk-in customer'} · {new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                 </div>
               </div>
