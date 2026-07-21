@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { 
   RotateCcw, 
   Search, 
@@ -17,7 +18,8 @@ import {
   Boxes,
   ScanLine,
   Eye,
-  Check
+  Check,
+  DollarSign
 } from 'lucide-react'
 import { authConfig, formatCurrency, formatDate } from '../../utils'
 import { SectionHeading } from '../../components/SectionHeading'
@@ -26,6 +28,7 @@ import _BarcodeReader from 'react-barcode-reader'
 const BarcodeReader = _BarcodeReader.default || _BarcodeReader
 
 export default function Returns({ api, session, onNotice, refreshCoreData }) {
+  const navigate = useNavigate()
   const [returns, setReturns] = useState([])
   const [branches, setBranches] = useState([])
   const [loading, setLoading] = useState(true)
@@ -65,6 +68,8 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
   const [isSearchingInvoice, setIsSearchingInvoice] = useState(false)
   const [lastScannedBarcode, setLastScannedBarcode] = useState('')
   const [selectedReturn, setSelectedReturn] = useState(null)
+  const [settlingReturn, setSettlingReturn] = useState(null)
+  const [settling, setSettling] = useState(false)
 
   // Autocomplete suggestions states
   const [availableInvoices, setAvailableInvoices] = useState([])
@@ -95,6 +100,21 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
     fetchReturns()
     fetchBranches()
   }, [])
+
+  const handleSettle = async () => {
+    setSettling(true)
+    try {
+      await api.put(`/returns/${settlingReturn._id}/settle`, {}, authConfig(session.token))
+      onNotice({ type: 'success', text: 'Return settled successfully' })
+      setSettlingReturn(null)
+      fetchReturns()
+      if (refreshCoreData) refreshCoreData()
+    } catch (err) {
+      onNotice({ type: 'error', text: 'Failed to settle return' })
+    } finally {
+      setSettling(false)
+    }
+  }
 
   async function fetchBranches() {
     try {
@@ -565,7 +585,8 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                         .slice(0, 5)
                         .map(inv => {
                           const invNo = inv.invoiceNumber || inv.invoiceNo;
-                          const name = inv.customerName || inv.supplier?.name || inv.entityName || 'Walk-in Customer';
+                          const supplierName = typeof inv.supplierId === 'object' ? inv.supplierId?.name : inv.supplierId;
+                          const name = inv.customerName || supplierName || inv.supplier?.name || inv.entityName || (newReturn.type === 'supplier' ? 'Unknown Supplier' : 'Walk-in Customer');
                           const amount = inv.total || inv.totalAmount || 0;
                           const dateStr = inv.createdAt || inv.date ? formatDate(inv.createdAt || inv.date) : '';
                           
@@ -723,7 +744,8 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                 >
                   {(() => {
                     const filtered = availableInvoices.filter(inv => {
-                      const name = inv.customerName || inv.supplier?.name || inv.entityName || 'Walk-in Customer';
+                      const supplierName = typeof inv.supplierId === 'object' ? inv.supplierId?.name : inv.supplierId;
+                      const name = inv.customerName || supplierName || inv.supplier?.name || inv.entityName || (newReturn.type === 'supplier' ? 'Unknown Supplier' : 'Walk-in Customer');
                       if (lookupEntityName && !name.toLowerCase().includes(lookupEntityName.toLowerCase())) return false;
                       
                       const date = new Date(inv.createdAt || inv.date);
@@ -747,7 +769,8 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
 
                     return filtered.slice(0, 10).map(inv => {
                       const invNo = inv.invoiceNumber || inv.invoiceNo;
-                      const name = inv.customerName || inv.supplier?.name || inv.entityName || 'Walk-in Customer';
+                      const supplierName = typeof inv.supplierId === 'object' ? inv.supplierId?.name : inv.supplierId;
+                      const name = inv.customerName || supplierName || inv.supplier?.name || inv.entityName || (newReturn.type === 'supplier' ? 'Unknown Supplier' : 'Walk-in Customer');
                       const amount = inv.total || inv.totalAmount || 0;
                       const dateStr = formatDate(inv.createdAt || inv.date);
                       
@@ -871,28 +894,6 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                     fontFamily: 'inherit'
                   }}
                 />
-              </div>
-              <div className="field">
-                <span>Refund Method</span>
-                <select 
-                  value={newReturn.refundMethod} 
-                  onChange={e => setNewReturn({...newReturn, refundMethod: e.target.value})}
-                  style={{
-                    width: '100%',
-                    height: '42px',
-                    borderRadius: '12px',
-                    background: 'var(--panel-strong)',
-                    border: '1px solid var(--border)',
-                    padding: '0 16px',
-                    color: 'var(--text)',
-                    fontSize: '0.9rem',
-                    boxShadow: 'var(--shadow-sm)'
-                  }}
-                >
-                  <option value="credit-note">Credit Note (Update Balance)</option>
-                  <option value="cash">Direct Cash Refund</option>
-                  <option value="bank-transfer">Bank Transfer</option>
-                </select>
               </div>
             </div>
           </div>
@@ -1340,14 +1341,15 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                 <th>Reference</th>
                 <th className="text-right">Amount</th>
                 <th>Status</th>
+                <th>Payment</th>
                 <th className="text-center" style={{ paddingRight: '24px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="7" className="text-center p-12 muted">Loading institutional ledger...</td></tr>
+                <tr><td colSpan="8" className="text-center p-12 muted">Loading institutional ledger...</td></tr>
               ) : filteredReturns.length === 0 ? (
-                <tr><td colSpan="7" className="text-center p-12 muted">No returns found matching your query.</td></tr>
+                <tr><td colSpan="8" className="text-center p-12 muted">No returns found matching your query.</td></tr>
               ) : paginatedReturns.map((ret) => (
                 <tr key={ret._id} className="table-row-hover">
                   <td style={{ paddingLeft: '24px' }}><strong className="accent-text" style={{ fontFamily: 'var(--font-mono)' }}>{ret.returnNo}</strong></td>
@@ -1381,19 +1383,44 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                     -{formatCurrency(ret.totalAmount)}
                   </td>
                   <td>
-                    <span className="pill success-soft cluster gap-1" style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px' }}>
-                      <CheckCircle2 size={12} /> COMPLETED
+                    {ret.status === 'completed' ? (
+                      <span className="pill success-soft cluster gap-1" style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px' }}>
+                        <CheckCircle2 size={12} /> COMPLETED
+                      </span>
+                    ) : ret.status === 'cancelled' ? (
+                      <span className="pill danger-soft cluster gap-1" style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px' }}>
+                        CANCELLED
+                      </span>
+                    ) : (
+                      <span className="pill warning-soft cluster gap-1" style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px' }}>
+                        PENDING
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <span className={`pill ${ret.paymentStatus === 'paid' ? 'success' : 'warning-soft'} small`} style={{ textTransform: 'uppercase' }}>
+                      {ret.paymentStatus === 'paid' ? 'PAID' : 'UNPAID'}
                     </span>
                   </td>
                   <td className="text-center" style={{ paddingRight: '24px' }}>
-                    <button 
-                      onClick={() => setSelectedReturn(ret)}
-                      className="icon-btn ghost hover-accent" 
-                      style={{ margin: '0 auto', display: 'grid', placeItems: 'center' }}
-                      title="View Details"
-                    >
-                      <Eye size={16} />
-                    </button>
+                    <div className="cluster gap-2 justify-end">
+                      {ret.type === 'supplier' && ret.entityId && ret.paymentStatus !== 'paid' && (
+                        <button 
+                          className="icon-btn ghost hover-accent" 
+                          title="Settle Return" 
+                          onClick={() => setSettlingReturn(ret)}
+                        >
+                          <DollarSign size={16} />
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => setSelectedReturn(ret)}
+                        className="icon-btn ghost hover-accent" 
+                        title="View Details"
+                      >
+                        <Eye size={16} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1483,6 +1510,49 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                 <span className="muted small font-bold">Total Refunded</span>
                 <div className="accent-text font-bold" style={{ fontSize: '1.5rem', fontFamily: 'var(--font-mono)' }}>{formatCurrency(selectedReturn.totalAmount)}</div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {settlingReturn && (
+        <div className="modal-overlay animate-fade" style={{ position: 'fixed', inset: 0, backdropFilter: 'blur(12px)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: '20px', background: 'rgba(0,0,0,0.4)' }}>
+          <div className="panel glass-panel p-6 animate-slide" style={{ width: '100%', maxWidth: '400px', background: 'var(--panel-strong)', borderRadius: '24px', boxShadow: 'var(--shadow-xl)' }}>
+            <div className="between align-center mb-6">
+              <h3 className="font-bold">Settle Return</h3>
+              <button onClick={() => setSettlingReturn(null)} className="icon-btn ghost hover-danger">
+                <XCircle size={20} />
+              </button>
+            </div>
+            
+            <div className="stack gap-4 mb-6">
+              <p className="muted small">Are you sure you want to mark this return as fully settled by the supplier?</p>
+              
+              <div className="card p-3 stack gap-2" style={{ background: 'var(--bg-soft)', borderRadius: '12px' }}>
+                <div className="between">
+                  <span className="muted small">Return No</span>
+                  <span className="font-mono font-bold">{settlingReturn.returnNo}</span>
+                </div>
+                <div className="between">
+                  <span className="muted small">Supplier</span>
+                  <span className="font-bold">{settlingReturn.entityName}</span>
+                </div>
+                <div className="between pt-2 mt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                  <span className="muted small">Settlement Amount</span>
+                  <span className="font-mono font-bold accent-text">{formatCurrency(settlingReturn.totalAmount)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="cluster gap-3 end">
+              <button className="btn btn-ghost" onClick={() => setSettlingReturn(null)}>Cancel</button>
+              <button 
+                className="btn btn-primary" 
+                onClick={handleSettle}
+                disabled={settling}
+              >
+                {settling ? 'Settling...' : 'Confirm Settlement'}
+              </button>
             </div>
           </div>
         </div>

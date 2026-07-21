@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
-const { createReturn, getReturns } = require('../services/store');
+const { createReturn, getReturns, settleReturn } = require('../services/store');
 
 router.get('/', requireAuth, async (req, res, next) => {
   try {
@@ -21,6 +21,15 @@ router.post('/', requireAuth, async (req, res, next) => {
       processedBy: req.user._id
     });
     res.status(201).json(returnDoc);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/:id/settle', requireAuth, async (req, res, next) => {
+  try {
+    const updatedReturn = await settleReturn(req.params.id);
+    res.json(updatedReturn);
   } catch (error) {
     next(error);
   }

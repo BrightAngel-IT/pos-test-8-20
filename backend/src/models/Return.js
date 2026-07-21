@@ -17,7 +17,8 @@ const returnSchema = new mongoose.Schema({
   items: [returnItemSchema],
   totalAmount: { type: Number, required: true },
   reason: String,
-  status: { type: String, enum: ['pending', 'completed', 'cancelled'], default: 'completed' },
+  status: { type: String, enum: ['pending', 'completed', 'cancelled'], default: 'pending' },
+  paymentStatus: { type: String, enum: ['unpaid', 'paid'], default: 'unpaid' },
   refundMethod: { type: String, enum: ['cash', 'credit-note', 'bank-transfer'], default: 'credit-note' },
   branch: { type: String, default: 'Main Branch' },
   processedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }

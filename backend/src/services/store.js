@@ -1024,6 +1024,23 @@ async function getReturns(filters = {}) {
   );
 }
 
+async function settleReturn(id) {
+  if (isDatabaseReady()) {
+    const returnDoc = await Return.findById(id);
+    if (!returnDoc) throw new Error('Return not found');
+    returnDoc.paymentStatus = 'paid';
+    returnDoc.status = 'completed';
+    await returnDoc.save();
+    return returnDoc;
+  }
+
+  const idx = memoryStore.returns.findIndex(r => String(r._id) === String(id));
+  if (idx === -1) throw new Error('Return not found');
+  memoryStore.returns[idx].paymentStatus = 'paid';
+  memoryStore.returns[idx].status = 'completed';
+  return clonePlain(memoryStore.returns[idx]);
+}
+
 async function getRecentSales(limit = 8) {
   const sales = await getAllSales();
   return sales.slice(0, limit);
@@ -1628,7 +1645,8 @@ module.exports = {
   getPurchases,
   createPurchase,
   transferInventory,
-  getTransfers
+  getTransfers,
+  settleReturn
 };
 
 async function getPurchases(filters = {}) {
