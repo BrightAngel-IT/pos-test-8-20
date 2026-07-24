@@ -1,3 +1,9 @@
+/**
+ * Module: Invoices
+ * 
+ * React UI page component representing the Invoices view.
+ */
+
 import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 

@@ -1,3 +1,9 @@
+/**
+ * Module: CashierDashboard
+ * 
+ * React UI page component representing the CashierDashboard view.
+ */
+
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {

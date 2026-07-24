@@ -1,3 +1,9 @@
+/**
+ * Module: POS
+ * 
+ * React UI page component representing the POS view.
+ */
+
 import React, { useState } from 'react'
 import {
   CreditCard,

@@ -1,5 +1,12 @@
 const express = require('express');
 const router = express.Router();
+
+/**
+ * Supplier Routes
+ * 
+ * Manages supplier profiles and vendor details.
+ */
+
 const Supplier = require('../models/Supplier');
 
 // CRUD routes for Supplier

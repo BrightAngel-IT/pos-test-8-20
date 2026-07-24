@@ -1,3 +1,9 @@
+/**
+ * Module: StaffForm
+ * 
+ * React UI page component representing the StaffForm view.
+ */
+
 import React, { useState, useEffect } from 'react'
 import { 
   ArrowLeft, 

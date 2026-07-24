@@ -4,6 +4,12 @@ const { transferInventory, getTransfers } = require('../services/store');
 
 const router = express.Router();
 
+/**
+ * Transfer Routes
+ * 
+ * Handles inventory transfers between different branches.
+ */
+
 router.get('/', requireAuth, requireRole(['super_admin']), async (req, res, next) => {
   try {
     const transfers = await getTransfers();

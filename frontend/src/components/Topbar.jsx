@@ -1,3 +1,9 @@
+/**
+ * Module: Topbar
+ * 
+ * Reusable React UI component: Topbar.
+ */
+
 import React, { useState, useEffect } from 'react'
 import { Clock, Moon, SunMedium } from 'lucide-react'
 import { formatCurrency } from '../utils'

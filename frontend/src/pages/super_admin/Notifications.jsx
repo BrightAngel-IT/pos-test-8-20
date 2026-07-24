@@ -1,3 +1,9 @@
+/**
+ * Module: Notifications
+ * 
+ * React UI page component representing the Notifications view.
+ */
+
 import React from 'react'
 import { AlertTriangle, Check, CheckCircle2, PackageX } from 'lucide-react'
 import { SectionHeading } from '../../components/SectionHeading'

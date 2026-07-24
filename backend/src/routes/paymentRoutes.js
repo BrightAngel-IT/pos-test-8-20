@@ -1,5 +1,12 @@
 const express = require('express');
 const router = express.Router();
+
+/**
+ * Payment Routes
+ * 
+ * Handles customer payments against their invoices.
+ */
+
 const { requireAuth } = require('../middleware/auth');
 const { 
   createPaymentWithAllocations, 

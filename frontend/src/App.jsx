@@ -104,7 +104,7 @@ const emptyProductForm = {
 function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('ims-theme') || 'light')
   const [session, setSession] = useState(() => {
-    const saved = localStorage.getItem('ims-session')
+    const saved = sessionStorage.getItem('ims-session')
     try {
       return saved ? JSON.parse(saved) : null
     } catch {
@@ -202,9 +202,9 @@ function App() {
 
   useEffect(() => {
     if (session?.token) {
-      localStorage.setItem('ims-session', JSON.stringify(session))
+      sessionStorage.setItem('ims-session', JSON.stringify(session))
     } else {
-      localStorage.removeItem('ims-session')
+      sessionStorage.removeItem('ims-session')
     }
   }, [session])
 

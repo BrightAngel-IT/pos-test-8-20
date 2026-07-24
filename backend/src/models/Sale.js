@@ -1,3 +1,9 @@
+/**
+ * Module: Sale
+ * 
+ * Mongoose database schema and model definition for Sale.
+ */
+
 const mongoose = require('mongoose');
 
 const saleItemSchema = new mongoose.Schema(

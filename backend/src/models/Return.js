@@ -1,3 +1,9 @@
+/**
+ * Module: Return
+ * 
+ * Mongoose database schema and model definition for Return.
+ */
+
 const mongoose = require('mongoose');
 
 const returnItemSchema = new mongoose.Schema({

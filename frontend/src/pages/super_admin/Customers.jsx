@@ -1,3 +1,9 @@
+/**
+ * Module: Customers
+ * 
+ * React UI page component representing the Customers view.
+ */
+
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {

@@ -1,3 +1,9 @@
+/**
+ * Module: Allocation
+ * 
+ * Mongoose database schema and model definition for Allocation.
+ */
+
 const mongoose = require('mongoose');
 
 const allocationSchema = new mongoose.Schema(

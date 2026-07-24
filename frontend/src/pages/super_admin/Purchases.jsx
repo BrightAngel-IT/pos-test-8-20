@@ -1,3 +1,9 @@
+/**
+ * Module: Purchases
+ * 
+ * React UI page component representing the Purchases view.
+ */
+
 import React, { useEffect, useState } from 'react'
 import {
   Truck,

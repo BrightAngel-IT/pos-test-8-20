@@ -1,3 +1,9 @@
+/**
+ * Module: supplierPaymentService
+ * 
+ * Core business logic and database queries for the store/application.
+ */
+
 const mongoose = require('mongoose');
 const SupplierInvoice = require('../models/SupplierInvoice');
 const SupplierPayment = require('../models/SupplierPayment');

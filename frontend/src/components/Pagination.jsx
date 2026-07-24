@@ -1,3 +1,9 @@
+/**
+ * Module: Pagination
+ * 
+ * Reusable React UI component: Pagination.
+ */
+
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 

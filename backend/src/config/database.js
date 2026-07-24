@@ -1,3 +1,9 @@
+/**
+ * Module: database
+ * 
+ * Handles logic and operations for database.
+ */
+
 const mongoose = require('mongoose');
 
 async function connectDatabase() {

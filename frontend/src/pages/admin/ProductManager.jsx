@@ -1,3 +1,9 @@
+/**
+ * Module: ProductManager
+ * 
+ * React UI page component representing the ProductManager view.
+ */
+
 import React from 'react'
 import { Edit, Plus, X, Warehouse, Package, Tag, FileText, DollarSign, Barcode, Layers, Image as ImageIcon, Ruler, Activity, CheckCircle2 } from 'lucide-react'
 import { SectionHeading } from '../../components/SectionHeading'

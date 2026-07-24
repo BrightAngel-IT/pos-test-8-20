@@ -1,5 +1,12 @@
 const express = require('express');
 const router = express.Router();
+
+/**
+ * Purchase Routes
+ * 
+ * Handles inventory procurement and purchase orders.
+ */
+
 const { requireAuth } = require('../middleware/auth');
 const { getPurchases, createPurchase } = require('../services/store');
 

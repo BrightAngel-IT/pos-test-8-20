@@ -1,3 +1,9 @@
+/**
+ * Module: Customer
+ * 
+ * Mongoose database schema and model definition for Customer.
+ */
+
 // Customer model
 const mongoose = require('mongoose');
 

@@ -27,6 +27,19 @@ import { Pagination } from '../../components/Pagination'
 import _BarcodeReader from 'react-barcode-reader'
 const BarcodeReader = _BarcodeReader.default || _BarcodeReader
 
+/**
+ * Returns Component
+ * 
+ * Manages the UI and logic for processing both customer and supplier returns.
+ * Supports manual searching, barcode scanning, and auto-calculating 
+ * previously returned quantities to prevent over-returning items.
+ * 
+ * @param {Object} props - Component props
+ * @param {Object} props.api - The axios instance configured for the backend API
+ * @param {Object} props.session - The user session object (including JWT)
+ * @param {Function} props.onNotice - Callback to display notifications
+ * @param {Function} props.refreshCoreData - Callback to refresh app-wide state
+ */
 export default function Returns({ api, session, onNotice, refreshCoreData }) {
   const navigate = useNavigate()
   const [returns, setReturns] = useState([])
@@ -137,6 +150,11 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
     }
   }
 
+  /**
+   * Search for an original transaction (Invoice or Purchase) 
+   * to base the return upon. It also calculates quantities that
+   * have already been returned to determine the `maxQuantity` allowed.
+   */
   async function searchInvoice(referenceOverride) {
     const ref = typeof referenceOverride === 'string' ? referenceOverride : newReturn.referenceNo;
     
@@ -261,6 +279,12 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
     setLookupEntityName('')
   }
 
+  /**
+   * Handle incoming barcode scans.
+   * If an invoice is already selected, it attempts to increment the scanned item.
+   * If no invoice is selected, it searches recent sales/purchases for the scanned item
+   * and auto-selects the transaction if found.
+   */
   async function handleBarcodeScan(code) {
     const cleanedCode = String(code || '').trim();
     if (!cleanedCode) return;

@@ -1,3 +1,9 @@
+/**
+ * Module: SectionHeading
+ * 
+ * Reusable React UI component: SectionHeading.
+ */
+
 import React from 'react'
 
 export function SectionHeading({ title, text }) {

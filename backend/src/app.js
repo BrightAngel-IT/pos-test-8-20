@@ -22,18 +22,26 @@ const companyRoutes = require('./routes/companyRoutes');
 const branchRoutes = require('./routes/branchRoutes');
 const transferRoutes = require('./routes/transferRoutes');
 
+/**
+ * Initializes and configures the Express application.
+ * 
+ * @returns {express.Application} The configured Express app instance.
+ */
 function createApp() {
   const app = express();
 
+  // Define allowed origins for CORS. Supports regex for localhost and vercel apps.
   let allowedOrigins = [
     /http:\/\/localhost:\d+/,
     /https?:\/\/.*\.vercel\.app$/
   ];
+  // Append any specific origins provided via environment variables
   if (process.env.CLIENT_ORIGIN) {
     const origins = process.env.CLIENT_ORIGIN.split(',').map((origin) => origin.trim());
     allowedOrigins = [...allowedOrigins, ...origins];
   }
 
+  // Apply CORS middleware
   app.use(
     cors({
       origin: (origin, callback) => {
@@ -57,6 +65,9 @@ function createApp() {
   );
   app.use(express.json({ limit: '1mb' }));
   
+  // ==========================================
+  // STATIC FILE SERVING (e.g. Uploaded Images)
+  // ==========================================
   // Ensure uploads directory exists
   const uploadsDir = path.join(__dirname, '../uploads');
   if (!fs.existsSync(uploadsDir)) {
@@ -75,6 +86,9 @@ function createApp() {
   });
 
 
+  // ==========================================
+  // API ROUTE REGISTRATION
+  // ==========================================
   app.use('/api/auth', authRoutes);
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/products', productRoutes);
@@ -94,6 +108,9 @@ function createApp() {
   app.use('/api/branches', branchRoutes);
   app.use('/api/transfers', transferRoutes);
 
+  // ==========================================
+  // GLOBAL ERROR HANDLER
+  // ==========================================
   app.use((error, _req, res, _next) => {
     console.error(error);
 

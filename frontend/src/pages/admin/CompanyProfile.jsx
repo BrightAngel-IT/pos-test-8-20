@@ -1,3 +1,9 @@
+/**
+ * Module: CompanyProfile
+ * 
+ * React UI page component representing the CompanyProfile view.
+ */
+
 import React, { useState, useEffect } from 'react'
 import { 
   Building2, 

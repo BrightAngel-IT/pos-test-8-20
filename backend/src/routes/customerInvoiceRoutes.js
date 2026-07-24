@@ -1,5 +1,12 @@
 const express = require('express');
 const router = express.Router();
+
+/**
+ * CustomerInvoice Routes
+ * 
+ * Manages invoices specifically bound to customers.
+ */
+
 const CustomerInvoice = require('../models/CustomerInvoice');
 const { requireAuth } = require('../middleware/auth');
 

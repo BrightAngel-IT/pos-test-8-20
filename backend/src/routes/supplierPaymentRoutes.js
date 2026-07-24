@@ -1,5 +1,12 @@
 const express = require('express');
 const router = express.Router();
+
+/**
+ * SupplierPayment Routes
+ * 
+ * Handles outbound payments to suppliers.
+ */
+
 const { 
   createSupplierPaymentWithAllocations, 
   getSupplierPaymentDetails,

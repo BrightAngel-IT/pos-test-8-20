@@ -15,6 +15,12 @@ import {
 import { SectionHeading } from '../../components/SectionHeading'
 import { authConfig } from '../../utils'
 
+/**
+ * Module: Branches
+ * 
+ * React UI page component representing the Branches view.
+ */
+
 export function BranchManagement({ api, session }) {
   const navigate = useNavigate()
   const [branches, setBranches] = useState([])

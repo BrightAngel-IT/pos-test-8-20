@@ -1,0 +1,60 @@
+FULL SYSTEM EXPLANATION: INVENTORY MANAGEMENT & POS SYSTEM
+
+This document provides a component-by-component breakdown of the entire application.
+
+====================================================
+1. BACKEND (Server, API & Database)
+====================================================
+The backend is built with Node.js, Express.js, and MongoDB. It exposes API endpoints for the frontend to consume.
+
+A. Core Models (Database Collections)
+- User: Stores authentication credentials and role information (e.g., admin, cashier, super_admin).
+- Company & Branch: Manages organization details and supports multi-branch operations.
+- Product: Stores catalog details, pricing, SKUs, and global inventory counts.
+- BranchStock & Allocation: Manages inventory levels specific to individual branches and internal allocations.
+- Supplier, Purchase, SupplierInvoice, SupplierPayment: Handles the supply chain side—managing vendors, logging purchase orders, and tracking payments to suppliers.
+- Customer, Sale, CustomerInvoice, CustomerPayment: Handles the sales side—managing customer profiles, logging Point of Sale transactions, generating invoices, and recording incoming payments.
+- Return: Handles processing of returned items.
+- Transfer: Tracks inventory moving between different branches.
+
+B. Core Logic
+- Authentication: Securely handled using JSON Web Tokens (JWT) and Bcrypt for password hashing.
+- File Uploads: Uses Multer for uploading assets (e.g., product images, company logos).
+
+====================================================
+2. FRONTEND (Client Interface)
+====================================================
+The frontend is a single-page application built with React.js. It features role-based routing tailored to the user's permissions.
+
+A. Authentication
+- Login Page (Login.jsx): The main entry point where users authenticate. Depending on their role, they are redirected to their specific dashboard.
+
+B. Role-Based Interfaces
+1. Super Admin Portal (`/super_admin`):
+   - Features full control over the entire system.
+   - Manages global settings, companies, branches, all users, overall products, and aggregate financial reports.
+   
+2. Admin Portal (`/admin`):
+   - Likely scoped to manage a specific branch or sub-set of data. 
+   - Can manage inventory allocations, handle staff, view branch-level sales, and process supplier transactions.
+   
+3. Cashier Portal (`/cashier`):
+   - Focuses primarily on Point of Sale (POS) operations.
+   - Simplified interface for ringing up Sales, registering new Customers on the fly, and handling simple Returns.
+
+C. UI & Styling
+- Utilizes Lucide-React for modern iconography.
+- Components are modularized (e.g., NoticeBanner) to keep the codebase DRY and maintainable.
+- Integrates with Axios to interact seamlessly with backend REST APIs.
+
+====================================================
+3. SYSTEM WORKFLOW (How it ties together)
+====================================================
+1. Initialization: The Super Admin sets up the Company, Branches, and Products. They create Admin and Cashier accounts.
+2. Procurement: Admins process Purchases from Suppliers, which increases the global inventory and creates Supplier Invoices.
+3. Distribution: Inventory is allocated to specific Branches (tracked via BranchStock and Transfers).
+4. Sales: Cashiers use the POS interface to create Sales for Customers. This deducts from BranchStock and creates Customer Invoices.
+5. Returns & Payments: If a product is returned, a Return record is generated and inventory is adjusted. Customer payments are logged against their invoices.
+
+---
+End of Document.

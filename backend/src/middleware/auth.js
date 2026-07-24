@@ -1,3 +1,9 @@
+/**
+ * Module: auth
+ * 
+ * Express middleware for auth operations (e.g., validation, auth, uploads).
+ */
+
 const jwt = require('jsonwebtoken');
 
 const { getUserById } = require('../services/store');

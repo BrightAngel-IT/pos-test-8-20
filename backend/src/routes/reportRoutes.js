@@ -5,6 +5,12 @@ const { getSalesReport } = require('../services/store');
 
 const router = express.Router();
 
+/**
+ * Report Routes
+ * 
+ * Generates various financial and inventory reports.
+ */
+
 router.get('/sales', requireAuth, requireRole(['super_admin', 'admin']), async (req, res, next) => {
   try {
     const range = req.query.range || 'weekly';

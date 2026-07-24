@@ -1,3 +1,9 @@
+/**
+ * Module: Supplier
+ * 
+ * Mongoose database schema and model definition for Supplier.
+ */
+
 // Supplier model
 const mongoose = require('mongoose');
 

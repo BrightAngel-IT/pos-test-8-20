@@ -1,3 +1,9 @@
+/**
+ * Module: demoData
+ * 
+ * Handles logic and operations for demoData.
+ */
+
 function createProductImage(label, accent, subLabel) {
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">

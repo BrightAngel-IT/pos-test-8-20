@@ -1,3 +1,9 @@
+/**
+ * Module: Settlements
+ * 
+ * React UI page component representing the Settlements view.
+ */
+
 import React, { useState, useEffect } from 'react'
 import {
   CreditCard,

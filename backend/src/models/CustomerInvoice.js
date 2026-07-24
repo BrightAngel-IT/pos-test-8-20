@@ -1,3 +1,9 @@
+/**
+ * Module: CustomerInvoice
+ * 
+ * Mongoose database schema and model definition for CustomerInvoice.
+ */
+
 const mongoose = require('mongoose');
 
 const customerInvoiceSchema = new mongoose.Schema(

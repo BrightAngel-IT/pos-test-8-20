@@ -1,3 +1,9 @@
+/**
+ * Module: NoticeBanner
+ * 
+ * Reusable React UI component: NoticeBanner.
+ */
+
 import React from 'react'
 
 export function NoticeBanner({ notice }) {

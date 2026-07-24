@@ -1,3 +1,9 @@
+/**
+ * Module: PaymentAllocation
+ * 
+ * React UI page component representing the PaymentAllocation view.
+ */
+
 import React, { useState, useEffect } from 'react'
 import {
   CreditCard,

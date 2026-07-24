@@ -1,3 +1,9 @@
+/**
+ * Module: Transfer
+ * 
+ * Mongoose database schema and model definition for Transfer.
+ */
+
 const mongoose = require('mongoose');
 
 const transferSchema = new mongoose.Schema({

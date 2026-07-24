@@ -1,3 +1,9 @@
+/**
+ * Module: SupplierInvoice
+ * 
+ * Mongoose database schema and model definition for SupplierInvoice.
+ */
+
 const mongoose = require('mongoose');
 
 const supplierInvoiceSchema = new mongoose.Schema(

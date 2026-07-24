@@ -1,5 +1,12 @@
 const express = require('express');
 const router = express.Router();
+
+/**
+ * SupplierInvoice Routes
+ * 
+ * Manages invoices issued by suppliers for purchases.
+ */
+
 const SupplierInvoice = require('../models/SupplierInvoice');
 const { requireAuth } = require('../middleware/auth');
 

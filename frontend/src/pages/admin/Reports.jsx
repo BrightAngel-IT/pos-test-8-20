@@ -1,3 +1,9 @@
+/**
+ * Module: Reports
+ * 
+ * React UI page component representing the Reports view.
+ */
+
 import React, { useState, useMemo } from 'react'
 import {
   BarChart3,

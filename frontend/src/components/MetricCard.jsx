@@ -1,3 +1,9 @@
+/**
+ * Module: MetricCard
+ * 
+ * Reusable React UI component: MetricCard.
+ */
+
 import React from 'react'
 
 export function MetricCard({ icon: Icon, title, value, helper, accent }) {

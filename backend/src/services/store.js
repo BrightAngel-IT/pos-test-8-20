@@ -1,3 +1,9 @@
+/**
+ * Module: store
+ * 
+ * Core business logic and database queries for the store/application.
+ */
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');

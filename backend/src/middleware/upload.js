@@ -1,3 +1,9 @@
+/**
+ * Module: upload
+ * 
+ * Express middleware for upload operations (e.g., validation, auth, uploads).
+ */
+
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');

@@ -1,3 +1,9 @@
+/**
+ * Module: utils
+ * 
+ * Handles logic and operations for utils.
+ */
+
 export const normalizeUrl = (url) => {
   if (!url) return '';
   const trimmed = url.trim();

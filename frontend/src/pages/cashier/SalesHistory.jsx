@@ -1,3 +1,9 @@
+/**
+ * Module: SalesHistory
+ * 
+ * React UI page component representing the SalesHistory view.
+ */
+
 import React, { useEffect, useState, useMemo } from 'react'
 import { 
   Receipt, 

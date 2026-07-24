@@ -1,3 +1,9 @@
+/**
+ * Module: Company
+ * 
+ * Mongoose database schema and model definition for Company.
+ */
+
 const mongoose = require('mongoose');
 
 const companySchema = new mongoose.Schema(

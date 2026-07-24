@@ -1,3 +1,9 @@
+/**
+ * Module: Reports
+ * 
+ * React UI page component representing the Reports view.
+ */
+
 import React, { useState, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import {

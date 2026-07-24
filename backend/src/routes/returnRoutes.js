@@ -1,5 +1,12 @@
 const express = require('express');
 const router = express.Router();
+
+/**
+ * Return Routes
+ * 
+ * Handles returns from customers or to suppliers.
+ */
+
 const { requireAuth } = require('../middleware/auth');
 const { createReturn, getReturns, settleReturn } = require('../services/store');
 

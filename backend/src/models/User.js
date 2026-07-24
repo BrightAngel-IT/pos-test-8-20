@@ -1,3 +1,9 @@
+/**
+ * Module: User
+ * 
+ * Mongoose database schema and model definition for User.
+ */
+
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema(

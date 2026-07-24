@@ -1,3 +1,9 @@
+/**
+ * Module: Sidebar
+ * 
+ * Reusable React UI component: Sidebar.
+ */
+
 import React, { useState, useEffect } from 'react'
 import {
   Boxes,

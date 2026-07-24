@@ -1,3 +1,9 @@
+/**
+ * Module: Product
+ * 
+ * Mongoose database schema and model definition for Product.
+ */
+
 const mongoose = require('mongoose');
 
 const productSchema = new mongoose.Schema(

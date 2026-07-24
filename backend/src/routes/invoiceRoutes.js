@@ -1,5 +1,12 @@
 const express = require('express');
 const router = express.Router();
+
+/**
+ * Invoice Routes
+ * 
+ * Handles general invoice generation and retrieval.
+ */
+
 const Invoice = require('../models/Invoice');
 
 // CRUD routes for Invoice

@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+/**
+ * Module: BranchStock
+ * 
+ * Mongoose database schema and model definition for BranchStock.
+ */
+
 const branchStockSchema = new mongoose.Schema(
   {
     branch: { type: String, required: true, trim: true },

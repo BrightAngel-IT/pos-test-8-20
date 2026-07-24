@@ -1,3 +1,9 @@
+/**
+ * Module: AccountStatement
+ * 
+ * React UI page component representing the AccountStatement view.
+ */
+
 import React, { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {

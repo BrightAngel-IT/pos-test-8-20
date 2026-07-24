@@ -1,3 +1,9 @@
+/**
+ * Module: Returns
+ * 
+ * React UI page component representing the Returns view.
+ */
+
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 

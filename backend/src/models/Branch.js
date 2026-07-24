@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+/**
+ * Module: Branch
+ * 
+ * Mongoose database schema and model definition for Branch.
+ */
+
 const branchSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, unique: true, trim: true },

@@ -1,3 +1,9 @@
+/**
+ * Module: Purchase
+ * 
+ * Mongoose database schema and model definition for Purchase.
+ */
+
 // Purchase model
 const mongoose = require('mongoose');
 

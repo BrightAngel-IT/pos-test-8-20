@@ -1,3 +1,9 @@
+/**
+ * Module: Invoice
+ * 
+ * Mongoose database schema and model definition for Invoice.
+ */
+
 // Invoice model
 const mongoose = require('mongoose');
 

@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { Plus, X, ArrowRightLeft } from 'lucide-react'
 
+/**
+ * Module: InventoryTransfer
+ * 
+ * React UI page component representing the InventoryTransfer view.
+ */
+
 export function InventoryTransfer({ api, session, onNotice, refreshCoreData }) {
   const [branches, setBranches] = useState([])
   const [products, setProducts] = useState([])

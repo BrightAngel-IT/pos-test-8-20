@@ -1,3 +1,9 @@
+/**
+ * Module: CustomerPayment
+ * 
+ * Mongoose database schema and model definition for CustomerPayment.
+ */
+
 const mongoose = require('mongoose');
 
 const customerPaymentSchema = new mongoose.Schema(

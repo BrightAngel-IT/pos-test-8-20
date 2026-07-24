@@ -6,6 +6,19 @@ const upload = require('../middleware/upload');
 
 const router = express.Router();
 
+/**
+ * Product Routes
+ * 
+ * Defines endpoints for managing inventory products. 
+ * Includes logic for filtering by branch and role, as well as handling
+ * image uploads and nested JSON fields (like warehouse rack locations).
+ */
+
+// ==========================================
+// FETCH PRODUCTS (WITH FILTERS)
+// ==========================================
+// GET /api/products
+// Returns a list of products. Can be filtered by query, category, and lowStock status.
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const filters = {
@@ -28,10 +41,15 @@ router.get('/', requireAuth, async (req, res, next) => {
   }
 });
 
+// ==========================================
+// CREATE A NEW PRODUCT
+// ==========================================
+// POST /api/products
+// Admin only. Also processes multipart/form-data for product images.
 router.post('/', requireAuth, requireRole(['admin']), upload.single('image'), async (req, res, next) => {
   try {
     const payload = { ...req.body };
-    
+
     // Handle nested rack object if sent as flattened FormData
     if (req.body['rack.rowNumber']) {
       payload.rack = {
@@ -40,7 +58,7 @@ router.post('/', requireAuth, requireRole(['admin']), upload.single('image'), as
         shelfNumber: req.body['rack.shelfNumber']
       };
     } else if (typeof req.body.rack === 'string') {
-      try { payload.rack = JSON.parse(req.body.rack); } catch(e) {}
+      try { payload.rack = JSON.parse(req.body.rack); } catch (e) { }
     }
 
     if (req.file) {
@@ -54,10 +72,15 @@ router.post('/', requireAuth, requireRole(['admin']), upload.single('image'), as
   }
 });
 
+// ==========================================
+// UPDATE A PRODUCT
+// ==========================================
+// PATCH /api/products/:id
+// Admin only. Also processes multipart/form-data for product images.
 router.patch('/:id', requireAuth, requireRole(['admin']), upload.single('image'), async (req, res, next) => {
   try {
     const payload = { ...req.body };
-    
+
     // Handle nested rack object if sent as flattened FormData
     if (req.body['rack.rowNumber']) {
       payload.rack = {
@@ -66,7 +89,7 @@ router.patch('/:id', requireAuth, requireRole(['admin']), upload.single('image')
         shelfNumber: req.body['rack.shelfNumber']
       };
     } else if (typeof req.body.rack === 'string') {
-      try { payload.rack = JSON.parse(req.body.rack); } catch(e) {}
+      try { payload.rack = JSON.parse(req.body.rack); } catch (e) { }
     }
 
     if (req.file) {
@@ -80,6 +103,11 @@ router.patch('/:id', requireAuth, requireRole(['admin']), upload.single('image')
   }
 });
 
+// ==========================================
+// DELETE A PRODUCT
+// ==========================================
+// DELETE /api/products/:id
+// Admin only.
 router.delete('/:id', requireAuth, requireRole(['admin']), async (req, res, next) => {
   try {
     await deleteProduct(req.params.id);

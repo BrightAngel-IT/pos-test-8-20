@@ -13,6 +13,24 @@ import { NoticeBanner } from '../components/NoticeBanner'
 import axios from 'axios'
 import { getBaseUrl } from '../utils'
 
+/**
+ * Login Component
+ * 
+ * Renders the authentication screen for the application.
+ * Displays a branded splash screen alongside a login form.
+ * 
+ * @param {Object} props - The component props.
+ * @param {string} props.theme - The current UI theme ('light' or 'dark').
+ * @param {Function} props.setTheme - Function to toggle the UI theme.
+ * @param {Object} props.authForm - The state object holding 'username' and 'password'.
+ * @param {Function} props.setAuthForm - Function to update the authForm state.
+ * @param {Function} props.handleLogin - Form submission handler passed from parent.
+ * @param {string|null} props.busyAction - Indicates if an action is currently loading (e.g. 'login').
+ * @param {boolean} props.demoCredentials - Flag indicating if demo credentials should be used.
+ * @param {string|null} props.notice - Notification message to display to the user.
+ * @param {Object} props.company - The company branding details (name, logo, tagline).
+ */
+
 export function Login({
   theme,
   setTheme,
@@ -24,7 +42,9 @@ export function Login({
   notice,
   company,
 }) {
+  // Resolve the logo URL, falling back to a default local asset if not provided
   const logoUrl = company?.logo ? `${getBaseUrl()}${company.logo}` : '/logo.png'
+  // Fallback names and taglines if company details haven't loaded yet
   const companyName = company?.name || 'NILMA Alliance'
   const companyTagline = company?.tagline || 'Enterprise Access'
 
@@ -94,6 +114,7 @@ export function Login({
           </button>
         </div>
 
+        {/* Authentication Form */}
         <form className="stack gap-5" onSubmit={handleLogin}>
           <label className="field">
             <span>Username</span>
@@ -139,6 +160,17 @@ export function Login({
   )
 }
 
+/**
+ * FeatureCard Component
+ * 
+ * A reusable UI component used on the login splash screen
+ * to highlight key system capabilities.
+ * 
+ * @param {Object} props
+ * @param {React.ComponentType} props.icon - The Lucide icon component.
+ * @param {string} props.title - The feature title.
+ * @param {string} props.text - The feature description.
+ */
 function FeatureCard({ icon: Icon, title, text }) {
   return (
     <article className="feature-card p-4" style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', transition: 'transform 0.3s' }}>

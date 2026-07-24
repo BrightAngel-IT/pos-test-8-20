@@ -1,3 +1,9 @@
+/**
+ * Module: Payments
+ * 
+ * React UI page component representing the Payments view.
+ */
+
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
 import { SectionHeading } from '../../components/SectionHeading'

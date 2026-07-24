@@ -1,3 +1,9 @@
+/**
+ * Module: BranchDetails
+ * 
+ * React UI page component representing the BranchDetails view.
+ */
+
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {

@@ -4,6 +4,12 @@ const { getUsers, saveUser, deleteUser } = require('../services/store');
 
 const router = express.Router();
 
+/**
+ * User Routes
+ * 
+ * Manages user accounts, staff profiles, and system access.
+ */
+
 router.use(requireAuth);
 router.use(requireRole(['super_admin', 'admin']));
 

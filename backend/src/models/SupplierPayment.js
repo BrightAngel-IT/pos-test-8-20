@@ -1,3 +1,9 @@
+/**
+ * Module: SupplierPayment
+ * 
+ * Mongoose database schema and model definition for SupplierPayment.
+ */
+
 const mongoose = require('mongoose');
 
 const supplierPaymentSchema = new mongoose.Schema(
