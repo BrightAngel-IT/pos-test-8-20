@@ -20,8 +20,8 @@ const router = express.Router();
 // Fetches sales optionally filtered by date, specific cashier, or text query.
 router.get('/', requireAuth, async (req, res, next) => {
   try {
-    const { date, cashierId, query } = req.query;
-    const sales = await getSales({ date, cashierId, query });
+    const { date, cashierId, query, customerId } = req.query;
+    const sales = await getSales({ date, cashierId, query, customerId });
     res.json({ sales });
   } catch (error) {
     next(error);

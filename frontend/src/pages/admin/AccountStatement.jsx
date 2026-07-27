@@ -53,6 +53,7 @@ export default function AccountStatement({ api, session, onNotice, company }) {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showAllocations, setShowAllocations] = useState(null) // ID of payment to show allocations for
+  const [immediatePayments, setImmediatePayments] = useState([])
 
   // Date range filters for user friendliness
   const [dateRange, setDateRange] = useState({
@@ -70,17 +71,42 @@ export default function AccountStatement({ api, session, onNotice, company }) {
     setLoading(true)
     try {
       const config = authConfig(session.token)
-      const [entityRes, invoicesRes, paymentsRes, returnsRes] = await Promise.all([
+      const [entityRes, invoicesRes, paymentsRes, returnsRes, salesRes] = await Promise.all([
         api.get(`/${type}s/${id}`, config),
         api.get(`/${type === 'customer' ? 'customer-invoices/customer' : 'supplier-invoices/supplier'}/${id}`, config),
         api.get(`/${type === 'customer' ? 'payments' : 'supplier-payments'}?${type}Id=${id}`, config),
-        api.get(`/returns?entityId=${id}`, config)
+        api.get(`/returns?entityId=${id}`, config),
+        type === 'customer' ? api.get(`/sales?customerId=${id}`, config) : Promise.resolve({ data: { sales: [] } })
       ])
 
       setEntity(entityRes.data)
       setInvoices(invoicesRes.data || [])
       setPayments(paymentsRes.data || [])
       setReturns(returnsRes.data || [])
+
+      const allSales = salesRes.data.sales || [];
+      const immediate = allSales.map(sale => {
+        let creditAmount = 0;
+        if (sale.paymentMethod === 'credit') {
+           creditAmount = sale.total;
+        } else if (sale.paymentMethod === 'split' && sale.splitPayments) {
+           const creditPart = sale.splitPayments.find(p => p.method === 'credit');
+           if (creditPart) creditAmount = Number(creditPart.amount || 0);
+        }
+        const immediateAmount = sale.total - creditAmount;
+        if (immediateAmount > 0) {
+           return {
+              _id: sale._id,
+              date: sale.createdAt,
+              reference: sale.invoiceNumber,
+              method: sale.paymentMethod === 'split' ? 'SPLIT (CASH/CARD)' : sale.paymentMethod.toUpperCase(),
+              amount: immediateAmount,
+              raw: sale
+           };
+        }
+        return null;
+      }).filter(Boolean);
+      setImmediatePayments(immediate);
     } catch (err) {
       onNotice?.({ type: 'error', text: 'Failed to load account data.' })
     } finally {
@@ -111,17 +137,61 @@ export default function AccountStatement({ api, session, onNotice, company }) {
         status: 'PAID',
         raw: pay
       })),
-      ...returns.filter(ret => ret.refundMethod === 'credit-note').map(ret => ({
-        _id: ret._id,
-        date: ret.createdAt,
-        type: 'Return (Credit Note)',
-        reference: ret.returnNo,
-        method: 'CREDIT NOTE',
-        billing: 0,
-        payment: ret.totalAmount,
-        status: 'COMPLETED',
-        raw: ret
-      }))
+      ...returns.flatMap(ret => {
+        const rows = [
+          {
+            _id: ret._id + '-cr',
+            date: ret.createdAt,
+            type: ret.refundMethod === 'credit-note' ? 'Return (Credit Note)' : 'Return (Goods)',
+            reference: ret.returnNo,
+            method: ret.refundMethod === 'credit-note' ? 'CREDIT NOTE' : 'GOODS RETURN',
+            billing: 0,
+            payment: ret.totalAmount,
+            status: ret.status.toUpperCase(),
+            raw: ret
+          }
+        ];
+        
+        if (ret.paidAmount > 0) {
+          rows.push({
+            _id: ret._id + '-dr',
+            date: ret.updatedAt || ret.createdAt,
+            type: 'Return Payout',
+            reference: ret.returnNo,
+            method: ret.refundMethod === 'bank-transfer' ? 'BANK REFUND' : 'CASH REFUND',
+            billing: ret.paidAmount,
+            payment: 0,
+            status: 'COMPLETED',
+            raw: ret
+          });
+        }
+        
+        return rows;
+      }),
+      ...immediatePayments.flatMap(p => [
+        {
+          _id: p._id + '-inv',
+          date: p.date,
+          type: 'Invoice (Immediate)',
+          reference: p.reference,
+          method: 'BILLING',
+          billing: p.amount,
+          payment: 0,
+          status: 'PAID',
+          raw: p.raw
+        },
+        {
+          _id: p._id + '-pay',
+          date: p.date,
+          type: 'Payment (Immediate)',
+          reference: p.reference,
+          method: p.method,
+          billing: 0,
+          payment: p.amount,
+          status: 'PAID',
+          raw: p.raw
+        }
+      ])
     ]
 
     // Sort by date (if same day, use precise createdAt time)
@@ -146,7 +216,7 @@ export default function AccountStatement({ api, session, onNotice, company }) {
       balance += t.billing - t.payment
       return { ...t, balance }
     })
-  }, [invoices, payments, returns])
+  }, [invoices, payments, returns, immediatePayments])
 
   const filteredData = useMemo(() => {
     return statementData.filter(t => {
@@ -164,9 +234,19 @@ export default function AccountStatement({ api, session, onNotice, company }) {
     const totalInvoiced = invoices.reduce((sum, i) => sum + i.totalAmount, 0)
     const totalPaid = payments.reduce((sum, p) => sum + p.totalAmount, 0)
     const totalReturned = returns.filter(ret => ret.refundMethod === 'credit-note').reduce((sum, r) => sum + r.totalAmount, 0)
+    
+    const totalImmediate = immediatePayments.reduce((sum, p) => sum + p.amount, 0)
+    const totalCashReturned = returns.reduce((sum, r) => sum + (r.paidAmount || 0), 0)
+    
     const outstanding = totalInvoiced - totalPaid - totalReturned
-    return { totalInvoiced, totalPaid, totalReturned, outstanding }
-  }, [invoices, payments, returns])
+    return { 
+      totalInvoiced: totalInvoiced + totalImmediate, 
+      totalPaid: totalPaid + totalImmediate, 
+      totalReturned, 
+      totalCashReturned, 
+      outstanding 
+    }
+  }, [invoices, payments, returns, immediatePayments])
 
   const handlePrint = () => {
     window.print()
@@ -303,6 +383,12 @@ export default function AccountStatement({ api, session, onNotice, company }) {
                 <div className="summary-row">
                   <span>Total Returns (CN)</span>
                   <strong>{formatCurrency(stats.totalReturned)}</strong>
+                </div>
+              )}
+              {stats.totalCashReturned > 0 && (
+                <div className="summary-row">
+                  <span>Total Returns Payout</span>
+                  <strong>{formatCurrency(stats.totalCashReturned)}</strong>
                 </div>
               )}
               <div className="summary-divider"></div>

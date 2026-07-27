@@ -50,6 +50,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [dateFilterPreset, setDateFilterPreset] = useState('all') // 'all', 'today', '7days', '30days', 'custom'
+  const [selectedBranch, setSelectedBranch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
@@ -57,7 +58,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
   // Reset page to 1 on filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, searchMethod, startDate, endDate, dateFilterPreset])
+  }, [search, searchMethod, startDate, endDate, dateFilterPreset, selectedBranch])
   
   const [returnMode, setReturnMode] = useState('supplier') // 'customer' or 'supplier'
   
@@ -83,6 +84,8 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
   const [selectedReturn, setSelectedReturn] = useState(null)
   const [settlingReturn, setSettlingReturn] = useState(null)
   const [settling, setSettling] = useState(false)
+  const [settlementAmount, setSettlementAmount] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Autocomplete suggestions states
   const [availableInvoices, setAvailableInvoices] = useState([])
@@ -111,13 +114,16 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
 
   useEffect(() => {
     fetchReturns()
+  }, [selectedBranch])
+
+  useEffect(() => {
     fetchBranches()
   }, [])
 
   const handleSettle = async () => {
     setSettling(true)
     try {
-      await api.put(`/returns/${settlingReturn._id}/settle`, {}, authConfig(session.token))
+      await api.put(`/returns/${settlingReturn._id}/settle`, { amount: Number(settlementAmount) || undefined }, authConfig(session.token))
       onNotice({ type: 'success', text: 'Return settled successfully' })
       setSettlingReturn(null)
       fetchReturns()
@@ -141,7 +147,8 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
   async function fetchReturns() {
     setLoading(true)
     try {
-      const response = await api.get('/returns', authConfig(session.token))
+      const qs = selectedBranch ? `?branch=${encodeURIComponent(selectedBranch)}` : ''
+      const response = await api.get(`/returns${qs}`, authConfig(session.token))
       setReturns(response.data)
     } catch (error) {
       onNotice({ type: 'error', text: 'Failed to load returns.' })
@@ -243,6 +250,8 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
 
   async function handleSubmitReturn(e) {
     e.preventDefault()
+    if (isSubmitting) return;
+
     const itemsToReturn = newReturn.items.filter(item => item.quantity > 0)
     
     if (itemsToReturn.length === 0) {
@@ -250,6 +259,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
       return
     }
     
+    setIsSubmitting(true)
     try {
       await api.post('/returns', { ...newReturn, items: itemsToReturn }, authConfig(session.token))
       onNotice({ type: 'success', text: 'Return processed successfully.' })
@@ -259,6 +269,8 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
       resetForm()
     } catch (error) {
       onNotice({ type: 'error', text: 'Failed to process return.' })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -1091,8 +1103,13 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                   </div>
                 </div>
 
-                <button onClick={handleSubmitReturn} className="btn btn-primary w-full p-4 mt-2 glow-on-hover" style={{ borderRadius: '12px', fontWeight: 'bold' }}>
-                  Complete Return & Refund
+                <button 
+                  onClick={handleSubmitReturn} 
+                  disabled={isSubmitting}
+                  className="btn btn-primary w-full p-4 mt-2 glow-on-hover" 
+                  style={{ borderRadius: '12px', fontWeight: 'bold' }}
+                >
+                  {isSubmitting ? 'Processing...' : 'Complete Return & Refund'}
                 </button>
               </div>
             )}
@@ -1288,9 +1305,31 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
           </div>
         </div>
 
-        {/* Date Range Selectors */}
+        {/* Date Range & Branch Selectors */}
         <div className="between wrap-row gap-4 pt-2" style={{ borderTop: '1px dashed var(--border)' }}>
           <div className="cluster gap-3 wrap-row">
+            <div className="cluster gap-2">
+              <span className="muted small font-bold uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.05em' }}>Branch:</span>
+              <select 
+                value={selectedBranch} 
+                onChange={e => setSelectedBranch(e.target.value)}
+                style={{
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: 'var(--bg-soft)',
+                  border: '1px solid var(--border)',
+                  padding: '0 10px',
+                  color: 'var(--text)',
+                  fontSize: '0.8rem'
+                }}
+              >
+                <option value="">All Branches</option>
+                {branches.map(b => (
+                  <option key={b._id} value={b.name}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="cluster gap-2">
               <Calendar size={16} className="accent-text" />
               <span className="muted small font-bold">Custom Date Range:</span>
@@ -1403,8 +1442,15 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                       {ret.referenceNo || 'N/A'}
                     </span>
                   </td>
-                  <td className="text-right font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--danger)' }}>
-                    -{formatCurrency(ret.totalAmount)}
+                  <td className="text-right" style={{ fontFamily: 'var(--font-mono)' }}>
+                    <div className="font-bold" style={{ color: 'var(--danger)' }}>
+                      -{formatCurrency(ret.totalAmount)}
+                    </div>
+                    {(ret.paidAmount > 0 && ret.paidAmount < ret.totalAmount) && (
+                      <div className="small muted" style={{ fontSize: '0.75rem' }}>
+                        Paid: {formatCurrency(ret.paidAmount)}
+                      </div>
+                    )}
                   </td>
                   <td>
                     {ret.status === 'completed' ? (
@@ -1422,17 +1468,20 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                     )}
                   </td>
                   <td>
-                    <span className={`pill ${ret.paymentStatus === 'paid' ? 'success' : 'warning-soft'} small`} style={{ textTransform: 'uppercase' }}>
-                      {ret.paymentStatus === 'paid' ? 'PAID' : 'UNPAID'}
+                    <span className={`pill ${ret.paymentStatus === 'paid' ? 'success' : ret.paymentStatus === 'partial' ? 'warning' : 'warning-soft'} small`} style={{ textTransform: 'uppercase' }}>
+                      {ret.paymentStatus === 'paid' ? 'PAID' : ret.paymentStatus === 'partial' ? 'PARTIAL' : 'UNPAID'}
                     </span>
                   </td>
                   <td className="text-center" style={{ paddingRight: '24px' }}>
                     <div className="cluster gap-2 justify-end">
-                      {ret.type === 'supplier' && ret.entityId && ret.paymentStatus !== 'paid' && (
+                      {ret.entityId && ret.paymentStatus !== 'paid' && (
                         <button 
                           className="icon-btn ghost hover-accent" 
                           title="Settle Return" 
-                          onClick={() => setSettlingReturn(ret)}
+                          onClick={() => {
+                            setSettlingReturn(ret)
+                            setSettlementAmount(ret.totalAmount - (ret.paidAmount || 0))
+                          }}
                         >
                           <DollarSign size={16} />
                         </button>
@@ -1550,7 +1599,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
             </div>
             
             <div className="stack gap-4 mb-6">
-              <p className="muted small">Are you sure you want to mark this return as fully settled by the supplier?</p>
+              <p className="muted small">Are you sure you want to record a payment for this return?</p>
               
               <div className="card p-3 stack gap-2" style={{ background: 'var(--bg-soft)', borderRadius: '12px' }}>
                 <div className="between">
@@ -1558,13 +1607,25 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                   <span className="font-mono font-bold">{settlingReturn.returnNo}</span>
                 </div>
                 <div className="between">
-                  <span className="muted small">Supplier</span>
+                  <span className="muted small">{settlingReturn.type === 'customer' ? 'Customer' : 'Supplier'}</span>
                   <span className="font-bold">{settlingReturn.entityName}</span>
                 </div>
                 <div className="between pt-2 mt-2" style={{ borderTop: '1px solid var(--border)' }}>
-                  <span className="muted small">Settlement Amount</span>
-                  <span className="font-mono font-bold accent-text">{formatCurrency(settlingReturn.totalAmount)}</span>
+                  <span className="muted small">Remaining Balance</span>
+                  <span className="font-mono font-bold accent-text">{formatCurrency(settlingReturn.totalAmount - (settlingReturn.paidAmount || 0))}</span>
                 </div>
+              </div>
+              
+              <div className="field">
+                <span className="font-bold small muted">Payment Amount</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="input-shell"
+                  value={settlementAmount}
+                  onChange={(e) => setSettlementAmount(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '10px' }}
+                />
               </div>
             </div>
 
@@ -1575,7 +1636,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                 onClick={handleSettle}
                 disabled={settling}
               >
-                {settling ? 'Settling...' : 'Confirm Settlement'}
+                {settling ? 'Processing...' : 'Confirm Payment'}
               </button>
             </div>
           </div>

@@ -1025,26 +1025,50 @@ async function getReturns(filters = {}) {
     list = list.filter(r => String(r.entityId) === String(filters.entityId));
   }
 
-  return clonePlain(list).sort(
+return clonePlain(list).sort(
     (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
   );
 }
 
-async function settleReturn(id) {
+async function settleReturn(id, amount) {
   if (isDatabaseReady()) {
     const returnDoc = await Return.findById(id);
     if (!returnDoc) throw new Error('Return not found');
-    returnDoc.paymentStatus = 'paid';
-    returnDoc.status = 'completed';
+    
+    if (amount !== undefined) {
+      returnDoc.paidAmount = (returnDoc.paidAmount || 0) + Number(amount);
+    } else {
+      returnDoc.paidAmount = returnDoc.totalAmount;
+    }
+    
+    if (returnDoc.paidAmount >= returnDoc.totalAmount) {
+      returnDoc.paymentStatus = 'paid';
+      returnDoc.status = 'completed';
+    } else {
+      returnDoc.paymentStatus = 'partial';
+      returnDoc.status = 'pending';
+    }
     await returnDoc.save();
     return returnDoc;
   }
 
   const idx = memoryStore.returns.findIndex(r => String(r._id) === String(id));
   if (idx === -1) throw new Error('Return not found');
-  memoryStore.returns[idx].paymentStatus = 'paid';
-  memoryStore.returns[idx].status = 'completed';
-  return clonePlain(memoryStore.returns[idx]);
+  const ret = memoryStore.returns[idx];
+  if (amount !== undefined) {
+    ret.paidAmount = (ret.paidAmount || 0) + Number(amount);
+  } else {
+    ret.paidAmount = ret.totalAmount;
+  }
+  
+  if (ret.paidAmount >= ret.totalAmount) {
+    ret.paymentStatus = 'paid';
+    ret.status = 'completed';
+  } else {
+    ret.paymentStatus = 'partial';
+    ret.status = 'pending';
+  }
+  return clonePlain(ret);
 }
 
 async function getRecentSales(limit = 8) {

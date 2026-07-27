@@ -35,7 +35,8 @@ router.post('/', requireAuth, async (req, res, next) => {
 
 router.put('/:id/settle', requireAuth, async (req, res, next) => {
   try {
-    const updatedReturn = await settleReturn(req.params.id);
+    const amount = req.body.amount;
+    const updatedReturn = await settleReturn(req.params.id, amount);
     res.json(updatedReturn);
   } catch (error) {
     next(error);

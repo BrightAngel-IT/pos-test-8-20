@@ -6,14 +6,14 @@
 
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { 
-  RotateCcw, 
-  Search, 
-  Filter, 
-  Plus, 
-  ArrowLeft, 
-  Calendar, 
-  User, 
+import {
+  RotateCcw,
+  Search,
+  Filter,
+  Plus,
+  ArrowLeft,
+  Calendar,
+  User,
   FileText,
   AlertCircle,
   CheckCircle2,
@@ -45,14 +45,14 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
   const [showForm, setShowForm] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
-  
+
   // Reset page to 1 on filters change
   useEffect(() => {
     setCurrentPage(1)
   }, [search, searchMethod, startDate, endDate, dateFilterPreset])
-  
+
   const [returnMode, setReturnMode] = useState('customer') // 'customer' or 'supplier'
-  
+
   // New Return Form State
   const [newReturn, setNewReturn] = useState({
     type: 'customer',
@@ -67,13 +67,15 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
   useEffect(() => {
     setNewReturn(prev => ({ ...prev, type: returnMode }))
   }, [returnMode])
-  
+
   const [foundInvoice, setFoundInvoice] = useState(null)
   const [isSearchingInvoice, setIsSearchingInvoice] = useState(false)
   const [lastScannedBarcode, setLastScannedBarcode] = useState('')
   const [selectedReturn, setSelectedReturn] = useState(null)
   const [settlingReturn, setSettlingReturn] = useState(null)
   const [settling, setSettling] = useState(false)
+  const [settlementAmount, setSettlementAmount] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Autocomplete suggestions states
   const [availableInvoices, setAvailableInvoices] = useState([])
@@ -118,7 +120,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
   const handleSettle = async () => {
     setSettling(true)
     try {
-      await api.put(`/returns/${settlingReturn._id}/settle`, {}, authConfig(session.token))
+      await api.put(`/returns/${settlingReturn._id}/settle`, { amount: Number(settlementAmount) || undefined }, authConfig(session.token))
       onNotice({ type: 'success', text: 'Return settled successfully' })
       setSettlingReturn(null)
       fetchReturns()
@@ -132,6 +134,17 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
 
   async function searchInvoice(referenceOverride) {
     const ref = typeof referenceOverride === 'string' ? referenceOverride : newReturn.referenceNo;
+
+    // Calculate previously returned quantities for this invoice
+    const previousReturns = returns.filter(r => r.referenceNo === ref)
+    const returnedQuantities = {}
+    previousReturns.forEach(ret => {
+      ret.items.forEach(item => {
+        const pId = item.productId || item._id;
+        returnedQuantities[pId] = (returnedQuantities[pId] || 0) + item.quantity
+      })
+    })
+
     if (!ref) return
     setIsSearchingInvoice(true)
     setFoundInvoice(null)
@@ -140,7 +153,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
         // Searching for original sale/invoice
         const response = await api.get(`/sales?query=${ref}`, authConfig(session.token))
         const sale = response.data.sales.find(s => s.invoiceNumber === ref)
-        
+
         if (sale) {
           setFoundInvoice(sale)
           setNewReturn(prev => ({
@@ -148,12 +161,17 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
             entityId: sale.customerId || '',
             entityName: sale.customerName || '',
             referenceNo: ref,
-            items: sale.items.map(item => ({
-              ...item,
-              quantity: 0, // Default to 0 for returning single item
-              maxQuantity: item.quantity,
-              unitPrice: item.price
-            }))
+            items: sale.items.map(item => {
+              const pId = item.productId || item._id;
+              const returnedQty = returnedQuantities[pId] || 0;
+              const maxQty = Math.max(0, item.quantity - returnedQty);
+              return {
+                ...item,
+                quantity: 0, // Default to 0 for returning single item
+                maxQuantity: maxQty,
+                unitPrice: item.price
+              }
+            })
           }))
         } else {
           onNotice({ type: 'warning', text: 'Invoice not found.' })
@@ -172,15 +190,20 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
               entityId: purchase.supplier?._id || '',
               entityName: purchase.supplier?.name || '',
               referenceNo: ref,
-              items: purchase.products.map(item => ({
-                productId: item.product?._id,
-                name: item.product?.name,
-                sku: item.product?.sku,
-                barcode: item.product?.barcode,
-                quantity: 0, // Default to 0
-                maxQuantity: item.quantity,
-                unitPrice: item.costPrice // Use cost price for supplier return
-              }))
+              items: purchase.products.map(item => {
+                const prodId = item.product?._id;
+                const returnedQty = returnedQuantities[prodId] || 0;
+                const maxQty = Math.max(0, item.quantity - returnedQty);
+                return {
+                  productId: prodId,
+                  name: item.product?.name,
+                  sku: item.product?.sku,
+                  barcode: item.product?.barcode,
+                  quantity: 0, // Default to 0
+                  maxQuantity: maxQty,
+                  unitPrice: item.costPrice // Use cost price for supplier return
+                }
+              })
             }))
           } else {
             onNotice({ type: 'warning', text: 'Original purchase order not found for this invoice.' })
@@ -198,13 +221,16 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
 
   async function handleSubmitReturn(e) {
     e.preventDefault()
+    if (isSubmitting) return;
+
     const itemsToReturn = newReturn.items.filter(item => item.quantity > 0)
-    
+
     if (itemsToReturn.length === 0) {
       onNotice({ type: 'warning', text: 'Please select at least one item to return with a quantity greater than zero.' })
       return
     }
-    
+
+    setIsSubmitting(true)
     try {
       await api.post('/returns', { ...newReturn, items: itemsToReturn }, authConfig(session.token))
       onNotice({ type: 'success', text: 'Return processed successfully.' })
@@ -214,6 +240,8 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
       resetForm()
     } catch (error) {
       onNotice({ type: 'error', text: 'Failed to process return.' })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -265,21 +293,37 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
       if (newReturn.type === 'customer') {
         const response = await api.get(`/sales?query=${cleanedCode}`, authConfig(session.token));
         const relevantSales = response.data.sales;
-        
+
         if (relevantSales.length > 0) {
           const latestSale = relevantSales[0];
+          const ref = latestSale.invoiceNumber;
+          const previousReturns = returns.filter(r => r.referenceNo === ref);
+          const returnedQuantities = {};
+          previousReturns.forEach(ret => {
+            ret.items.forEach(item => {
+              const pId = item.productId || item._id;
+              returnedQuantities[pId] = (returnedQuantities[pId] || 0) + item.quantity;
+            });
+          });
+
           setFoundInvoice(latestSale);
           setNewReturn(prev => ({
             ...prev,
-            referenceNo: latestSale.invoiceNumber,
+            referenceNo: ref,
             entityId: latestSale.customerId || '',
             entityName: latestSale.customerName || '',
-            items: latestSale.items.map(item => ({
-              ...item,
-              quantity: (item.barcode === cleanedCode || item.sku === cleanedCode) ? 1 : 0, 
-              maxQuantity: item.quantity,
-              unitPrice: item.price
-            }))
+            items: latestSale.items.map(item => {
+              const pId = item.productId || item._id;
+              const returnedQty = returnedQuantities[pId] || 0;
+              const maxQty = Math.max(0, item.quantity - returnedQty);
+              const isTarget = (item.barcode === cleanedCode || item.sku === cleanedCode) && maxQty > 0;
+              return {
+                ...item,
+                quantity: isTarget ? 1 : 0,
+                maxQuantity: maxQty,
+                unitPrice: item.price
+              };
+            })
           }));
           onNotice({ type: 'success', text: `Found invoice ${latestSale.invoiceNumber}` });
           if (!showForm) setShowForm(true);
@@ -289,34 +333,50 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
       } else {
         // supplier return type
         const purchasesRes = await api.get('/purchases', authConfig(session.token));
-        const relevantPurchases = purchasesRes.data.filter(p => 
+        const relevantPurchases = purchasesRes.data.filter(p =>
           p.products?.some(prod => prod.product?.barcode === cleanedCode || prod.product?.sku === cleanedCode)
         );
 
         if (relevantPurchases.length > 0) {
           const latestPurchase = relevantPurchases[relevantPurchases.length - 1];
-          
+
           const sInvoicesRes = await api.get('/supplier-invoices', authConfig(session.token));
-          const matchingInvoice = sInvoicesRes.data.find(inv => 
-            inv.supplierId?._id === latestPurchase.supplier?._id && 
+          const matchingInvoice = sInvoicesRes.data.find(inv =>
+            inv.supplierId?._id === latestPurchase.supplier?._id &&
             Math.abs(inv.totalAmount - latestPurchase.total) < 0.01
           );
+
+          const ref = matchingInvoice ? matchingInvoice.invoiceNo : `PUR-${new Date(latestPurchase.date).getTime()}`;
+          const previousReturns = returns.filter(r => r.referenceNo === ref);
+          const returnedQuantities = {};
+          previousReturns.forEach(ret => {
+            ret.items.forEach(item => {
+              const pId = item.productId || item._id;
+              returnedQuantities[pId] = (returnedQuantities[pId] || 0) + item.quantity;
+            });
+          });
 
           setFoundInvoice(latestPurchase);
           setNewReturn(prev => ({
             ...prev,
-            referenceNo: matchingInvoice ? matchingInvoice.invoiceNo : `PUR-${new Date(latestPurchase.date).getTime()}`,
+            referenceNo: ref,
             entityId: latestPurchase.supplier?._id || '',
             entityName: latestPurchase.supplier?.name || '',
-            items: latestPurchase.products.map(item => ({
-              productId: item.product?._id,
-              name: item.product?.name,
-              sku: item.product?.sku,
-              barcode: item.product?.barcode,
-              quantity: (item.product?.barcode === cleanedCode || item.product?.sku === cleanedCode) ? 1 : 0,
-              maxQuantity: item.quantity,
-              unitPrice: item.costPrice
-            }))
+            items: latestPurchase.products.map(item => {
+              const prodId = item.product?._id;
+              const returnedQty = returnedQuantities[prodId] || 0;
+              const maxQty = Math.max(0, item.quantity - returnedQty);
+              const isTarget = (item.product?.barcode === cleanedCode || item.product?.sku === cleanedCode) && maxQty > 0;
+              return {
+                productId: prodId,
+                name: item.product?.name,
+                sku: item.product?.sku,
+                barcode: item.product?.barcode,
+                quantity: isTarget ? 1 : 0,
+                maxQuantity: maxQty,
+                unitPrice: item.costPrice
+              };
+            })
           }));
           onNotice({ type: 'success', text: `Found purchase for supplier: ${latestPurchase.supplier?.name}` });
           if (!showForm) setShowForm(true);
@@ -443,15 +503,15 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
   if (showForm) {
     return (
       <div className="stack gap-4">
-        <BarcodeReader onError={() => {}} onScan={handleBarcodeScan} />
+        <BarcodeReader onError={() => { }} onScan={handleBarcodeScan} />
         <div className="cluster gap-4 align-center wrap-row">
           <button onClick={() => { setShowForm(false); resetForm(); }} className="btn btn-secondary cluster gap-2" style={{ borderRadius: '12px', height: '38px', padding: '0 16px' }}>
             <ArrowLeft size={16} /> Back
           </button>
           <div style={{ height: '20px', width: '1px', background: 'var(--border)' }}></div>
-          <SectionHeading 
-            title={newReturn.type === 'customer' ? "New Customer Return" : "New Supplier Return"} 
-            subtitle={newReturn.type === 'customer' ? "Process a sale reversal and credit note" : "Process a vendor return and debit note"} 
+          <SectionHeading
+            title={newReturn.type === 'customer' ? "New Customer Return" : "New Supplier Return"}
+            subtitle={newReturn.type === 'customer' ? "Process a sale reversal and credit note" : "Process a vendor return and debit note"}
           />
         </div>
 
@@ -462,16 +522,16 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                 <History size={18} className="accent-text" /> 1. Locate Original Transaction
               </h3>
             </div>
-            
+
             <div className="stack gap-3">
               <div className="field" style={{ position: 'relative' }}>
                 <span>{newReturn.type === 'customer' ? 'Original Invoice Number' : 'Supplier Invoice Reference'}</span>
                 <div className="cluster gap-2">
-                  <input 
-                    type="text" 
-                    value={newReturn.referenceNo} 
+                  <input
+                    type="text"
+                    value={newReturn.referenceNo}
                     onChange={e => {
-                      setNewReturn({...newReturn, referenceNo: e.target.value})
+                      setNewReturn({ ...newReturn, referenceNo: e.target.value })
                       setShowSuggestions(true)
                     }}
                     onFocus={() => setShowSuggestions(true)}
@@ -495,11 +555,11 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
 
                 {showSuggestions && newReturn.referenceNo.trim().length > 0 && (
                   <>
-                    <div 
+                    <div
                       onClick={() => setShowSuggestions(false)}
                       style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998, background: 'transparent' }}
                     />
-                    <div 
+                    <div
                       className="panel glass-panel stack"
                       style={{
                         position: 'absolute',
@@ -530,7 +590,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                           const name = inv.customerName || supplierName || inv.supplier?.name || inv.entityName || (newReturn.type === 'supplier' ? 'Unknown Supplier' : 'Walk-in Customer');
                           const amount = inv.total || inv.totalAmount || 0;
                           const dateStr = inv.createdAt || inv.date ? formatDate(inv.createdAt || inv.date) : '';
-                          
+
                           return (
                             <button
                               key={inv._id || invNo}
@@ -565,7 +625,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                                 searchInvoice(invNo)
                               }}
                             >
-                              <div 
+                              <div
                                 style={{
                                   width: '32px',
                                   height: '32px',
@@ -594,19 +654,19 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                         const invNo = inv.invoiceNumber || inv.invoiceNo || '';
                         return invNo.toLowerCase().includes(newReturn.referenceNo.toLowerCase());
                       }).length === 0 && (
-                        <div className="p-4 muted small text-center">No matching invoices found</div>
-                      )}
+                          <div className="p-4 muted small text-center">No matching invoices found</div>
+                        )}
                     </div>
                   </>
                 )}
               </div>
 
               {/* Interactive Invoices Finder (Date, Entity Search & Select) */}
-              <div 
-                style={{ 
-                  marginTop: '12px', 
-                  borderTop: '1px dashed var(--border)', 
-                  paddingTop: '12px' 
+              <div
+                style={{
+                  marginTop: '12px',
+                  borderTop: '1px dashed var(--border)',
+                  paddingTop: '12px'
                 }}
               >
                 <div className="between align-center mb-2">
@@ -614,22 +674,22 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                     Or browse & select matching transactions
                   </span>
                 </div>
-                
+
                 <div className="grid-3 gap-2" style={{ marginBottom: '8px' }}>
                   <div className="stack gap-1">
                     <span className="muted small" style={{ fontSize: '0.65rem', fontWeight: 'bold' }}>Contact / Client</span>
-                    <input 
-                      type="text" 
-                      placeholder="Filter by contact name..." 
+                    <input
+                      type="text"
+                      placeholder="Filter by contact name..."
                       value={lookupEntityName}
                       onChange={e => setLookupEntityName(e.target.value)}
-                      style={{ 
-                        height: '30px', 
-                        borderRadius: '8px', 
-                        background: 'var(--panel-strong)', 
-                        border: '1px solid var(--border)', 
-                        padding: '0 8px', 
-                        fontSize: '0.75rem', 
+                      style={{
+                        height: '30px',
+                        borderRadius: '8px',
+                        background: 'var(--panel-strong)',
+                        border: '1px solid var(--border)',
+                        padding: '0 8px',
+                        fontSize: '0.75rem',
                         color: 'var(--text)',
                         width: '100%'
                       }}
@@ -637,17 +697,17 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                   </div>
                   <div className="stack gap-1">
                     <span className="muted small" style={{ fontSize: '0.65rem', fontWeight: 'bold' }}>From Date</span>
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
                       value={lookupStartDate}
                       onChange={e => setLookupStartDate(e.target.value)}
-                      style={{ 
-                        height: '30px', 
-                        borderRadius: '8px', 
-                        background: 'var(--panel-strong)', 
-                        border: '1px solid var(--border)', 
-                        padding: '0 8px', 
-                        fontSize: '0.75rem', 
+                      style={{
+                        height: '30px',
+                        borderRadius: '8px',
+                        background: 'var(--panel-strong)',
+                        border: '1px solid var(--border)',
+                        padding: '0 8px',
+                        fontSize: '0.75rem',
                         color: 'var(--text)',
                         width: '100%'
                       }}
@@ -655,17 +715,17 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                   </div>
                   <div className="stack gap-1">
                     <span className="muted small" style={{ fontSize: '0.65rem', fontWeight: 'bold' }}>To Date</span>
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
                       value={lookupEndDate}
                       onChange={e => setLookupEndDate(e.target.value)}
-                      style={{ 
-                        height: '30px', 
-                        borderRadius: '8px', 
-                        background: 'var(--panel-strong)', 
-                        border: '1px solid var(--border)', 
-                        padding: '0 8px', 
-                        fontSize: '0.75rem', 
+                      style={{
+                        height: '30px',
+                        borderRadius: '8px',
+                        background: 'var(--panel-strong)',
+                        border: '1px solid var(--border)',
+                        padding: '0 8px',
+                        fontSize: '0.75rem',
                         color: 'var(--text)',
                         width: '100%'
                       }}
@@ -673,12 +733,12 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                   </div>
                 </div>
 
-                <div 
-                  style={{ 
-                    maxHeight: '120px', 
-                    overflowY: 'auto', 
-                    border: '1px solid var(--border)', 
-                    borderRadius: '8px', 
+                <div
+                  style={{
+                    maxHeight: '120px',
+                    overflowY: 'auto',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
                     background: 'var(--bg-soft)',
                     boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'
                   }}
@@ -688,19 +748,19 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                       const supplierName = typeof inv.supplierId === 'object' ? inv.supplierId?.name : inv.supplierId;
                       const name = inv.customerName || supplierName || inv.supplier?.name || inv.entityName || (newReturn.type === 'supplier' ? 'Unknown Supplier' : 'Walk-in Customer');
                       if (lookupEntityName && !name.toLowerCase().includes(lookupEntityName.toLowerCase())) return false;
-                      
+
                       const date = new Date(inv.createdAt || inv.date);
                       if (lookupStartDate) {
                         const sDate = new Date(lookupStartDate);
-                        sDate.setHours(0,0,0,0);
+                        sDate.setHours(0, 0, 0, 0);
                         if (date.getTime() < sDate.getTime()) return false;
                       }
                       if (lookupEndDate) {
                         const eDate = new Date(lookupEndDate);
-                        eDate.setHours(23,59,59,999);
+                        eDate.setHours(23, 59, 59, 999);
                         if (date.getTime() > eDate.getTime()) return false;
                       }
-                      
+
                       return true;
                     });
 
@@ -714,15 +774,15 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                       const name = inv.customerName || supplierName || inv.supplier?.name || inv.entityName || (newReturn.type === 'supplier' ? 'Unknown Supplier' : 'Walk-in Customer');
                       const amount = inv.total || inv.totalAmount || 0;
                       const dateStr = formatDate(inv.createdAt || inv.date);
-                      
+
                       return (
-                        <div 
-                          key={inv._id || invNo} 
-                          className="between p-2 table-row-hover" 
-                          style={{ 
-                            borderBottom: '1px solid var(--border)', 
-                            cursor: 'pointer', 
-                            fontSize: '0.75rem', 
+                        <div
+                          key={inv._id || invNo}
+                          className="between p-2 table-row-hover"
+                          style={{
+                            borderBottom: '1px solid var(--border)',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem',
                             gap: '8px',
                             alignItems: 'center'
                           }}
@@ -747,12 +807,12 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
               </div>
 
               {/* Barcode Scanner panel */}
-              <div 
-                className={`scanner-panel p-3 ${lastScannedBarcode ? 'animate-pulse-soft' : ''}`} 
-                style={{ 
-                  borderRadius: '12px', 
-                  background: lastScannedBarcode ? 'linear-gradient(145deg, var(--accent-soft), var(--bg-soft))' : 'var(--bg-soft)', 
-                  border: `1px solid ${lastScannedBarcode ? 'var(--accent)' : 'var(--border)'}`, 
+              <div
+                className={`scanner-panel p-3 ${lastScannedBarcode ? 'animate-pulse-soft' : ''}`}
+                style={{
+                  borderRadius: '12px',
+                  background: lastScannedBarcode ? 'linear-gradient(145deg, var(--accent-soft), var(--bg-soft))' : 'var(--bg-soft)',
+                  border: `1px solid ${lastScannedBarcode ? 'var(--accent)' : 'var(--border)'}`,
                   transition: 'all 0.3s ease',
                   marginBottom: '8px'
                 }}
@@ -767,17 +827,17 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                 <p className="muted small" style={{ fontSize: '0.7rem' }}>
                   {lastScannedBarcode ? `Last Scanned: ${lastScannedBarcode}` : 'Awaiting scanner input...'}
                 </p>
-                
+
                 <div className="cluster gap-2 mt-2">
-                  <input 
-                    type="text" 
-                    placeholder="Scan or type barcode/SKU & press Enter..." 
-                    style={{ 
+                  <input
+                    type="text"
+                    placeholder="Scan or type barcode/SKU & press Enter..."
+                    style={{
                       flex: 1,
                       width: '100%',
-                      height: '36px', 
-                      borderRadius: '8px', 
-                      background: 'var(--panel)', 
+                      height: '36px',
+                      borderRadius: '8px',
+                      background: 'var(--panel)',
                       border: '1px solid var(--border)',
                       padding: '0 12px',
                       color: 'var(--text)',
@@ -793,7 +853,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                   />
                 </div>
               </div>
-              
+
               {foundInvoice && (
                 <div className="panel-strong p-4 rounded-xl border border-dashed border-accent-soft" style={{ background: 'var(--bg-soft)' }}>
                   <div className="between mb-2">
@@ -817,9 +877,9 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
             <div className="stack gap-3">
               <div className="field">
                 <span>Reason for Return</span>
-                <textarea 
-                  value={newReturn.reason} 
-                  onChange={e => setNewReturn({...newReturn, reason: e.target.value})}
+                <textarea
+                  value={newReturn.reason}
+                  onChange={e => setNewReturn({ ...newReturn, reason: e.target.value })}
                   placeholder="e.g. Damaged during transit, Wrong item..."
                   style={{
                     width: '100%',
@@ -848,17 +908,17 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
               </div>
               {foundInvoice && (
                 <div className="cluster gap-2">
-                  <button 
-                    type="button" 
-                    onClick={selectAllItems} 
+                  <button
+                    type="button"
+                    onClick={selectAllItems}
                     className="pill neutral-soft small glow-on-hover"
                     style={{ fontSize: '0.7rem', padding: '4px 10px', border: '1px solid var(--border)', cursor: 'pointer' }}
                   >
                     Select All
                   </button>
-                  <button 
-                    type="button" 
-                    onClick={clearAllItems} 
+                  <button
+                    type="button"
+                    onClick={clearAllItems}
                     className="pill neutral-soft small glow-on-hover"
                     style={{ fontSize: '0.7rem', padding: '4px 10px', border: '1px solid var(--border)', color: 'var(--danger)', cursor: 'pointer' }}
                   >
@@ -867,7 +927,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                 </div>
               )}
             </div>
-            
+
             {!foundInvoice ? (
               <div className="stack align-center justify-center p-12 text-center" style={{ border: '2px dashed var(--border)', borderRadius: '16px', background: 'rgba(255, 255, 255, 0.01)', minHeight: '280px' }}>
                 <div style={{ background: 'var(--accent-soft)', color: 'var(--accent-strong)', width: '60px', height: '60px', borderRadius: '50%', display: 'grid', placeItems: 'center', marginBottom: '16px' }}>
@@ -894,19 +954,19 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                       {newReturn.items.map((item, idx) => {
                         const isSelected = item.quantity > 0;
                         return (
-                          <tr 
-                            key={idx} 
-                            className="table-row-hover" 
-                            style={{ 
+                          <tr
+                            key={idx}
+                            className="table-row-hover"
+                            style={{
                               background: isSelected ? 'var(--accent-soft)' : 'transparent',
                               transition: 'background 0.2s ease',
                               borderBottom: '1px solid var(--border)'
                             }}
                           >
                             <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-                              <input 
-                                type="checkbox" 
-                                checked={isSelected} 
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
                                 onChange={() => toggleItemInclusion(idx)}
                                 style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                               />
@@ -925,16 +985,16 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                             </td>
                             <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
                               <div className="cluster gap-1 align-center" style={{ background: 'var(--panel)', borderRadius: '8px', padding: '2px', display: 'inline-flex', border: '1px solid var(--border)' }}>
-                                <button 
-                                  type="button" 
+                                <button
+                                  type="button"
                                   onClick={() => handleQuantityChange(idx, item.quantity - 1)}
                                   style={{
-                                    width: '24px', 
-                                    height: '24px', 
-                                    borderRadius: '6px', 
-                                    border: 'none', 
-                                    background: 'var(--bg-soft)', 
-                                    color: 'var(--text)', 
+                                    width: '24px',
+                                    height: '24px',
+                                    borderRadius: '6px',
+                                    border: 'none',
+                                    background: 'var(--bg-soft)',
+                                    color: 'var(--text)',
                                     cursor: 'pointer',
                                     display: 'grid',
                                     placeItems: 'center',
@@ -945,34 +1005,34 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                                 >
                                   -
                                 </button>
-                                <input 
-                                  type="number" 
-                                  value={item.quantity} 
-                                  min="0" 
+                                <input
+                                  type="number"
+                                  value={item.quantity}
+                                  min="0"
                                   max={item.maxQuantity}
                                   onChange={e => handleQuantityChange(idx, parseInt(e.target.value) || 0)}
                                   className="text-center font-bold"
-                                  style={{ 
-                                    width: '32px', 
-                                    border: 'none', 
-                                    background: 'transparent', 
-                                    color: 'var(--text-strong)', 
+                                  style={{
+                                    width: '32px',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: 'var(--text-strong)',
                                     fontSize: '0.85rem',
                                     padding: '0',
                                     appearance: 'none',
                                     MozAppearance: 'textfield'
                                   }}
                                 />
-                                <button 
-                                  type="button" 
+                                <button
+                                  type="button"
                                   onClick={() => handleQuantityChange(idx, item.quantity + 1)}
                                   style={{
-                                    width: '24px', 
-                                    height: '24px', 
-                                    borderRadius: '6px', 
-                                    border: 'none', 
-                                    background: 'var(--bg-soft)', 
-                                    color: 'var(--text)', 
+                                    width: '24px',
+                                    height: '24px',
+                                    borderRadius: '6px',
+                                    border: 'none',
+                                    background: 'var(--bg-soft)',
+                                    color: 'var(--text)',
                                     cursor: 'pointer',
                                     display: 'grid',
                                     placeItems: 'center',
@@ -994,7 +1054,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                     </tbody>
                   </table>
                 </div>
-                
+
                 <div className="panel-strong p-4 rounded-xl between mt-2" style={{ background: 'var(--panel)', border: '1px solid var(--border)' }}>
                   <div className="stack gap-1">
                     <span className="muted small">Items returning</span>
@@ -1008,8 +1068,13 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                   </div>
                 </div>
 
-                <button onClick={handleSubmitReturn} className="btn btn-primary w-full p-4 mt-2 glow-on-hover" style={{ borderRadius: '12px', fontWeight: 'bold' }}>
-                  Complete Return & Refund
+                <button
+                  onClick={handleSubmitReturn}
+                  disabled={isSubmitting}
+                  className="btn btn-primary w-full p-4 mt-2 glow-on-hover"
+                  style={{ borderRadius: '12px', fontWeight: 'bold' }}
+                >
+                  {isSubmitting ? 'Processing...' : 'Complete Return & Refund'}
                 </button>
               </div>
             )}
@@ -1032,8 +1097,8 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
 
   return (
     <div className="stack gap-4 animate-fade">
-      <BarcodeReader onError={() => {}} onScan={handleBarcodeScan} />
-      
+      <BarcodeReader onError={() => { }} onScan={handleBarcodeScan} />
+
       {/* Header with Mode Toggle */}
       <div className="between wrap-row panel p-4 glass-panel" style={{ borderLeft: `4px solid ${modeAccent}`, borderRadius: '16px', gap: '16px' }}>
         <div className="cluster gap-4">
@@ -1066,12 +1131,12 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
             </button>
             <button
               className={`btn sm ${returnMode === 'supplier' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ 
-                borderRadius: '10px', 
-                minWidth: '100px', 
-                padding: '6px 12px', 
+              style={{
+                borderRadius: '10px',
+                minWidth: '100px',
+                padding: '6px 12px',
                 fontSize: '0.85rem',
-                background: returnMode === 'supplier' ? 'var(--accent)' : 'transparent' 
+                background: returnMode === 'supplier' ? 'var(--accent)' : 'transparent'
               }}
               onClick={() => {
                 setReturnMode('supplier');
@@ -1146,21 +1211,21 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
             <span className="muted small font-bold uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.05em' }}>Search Query</span>
             <div className="input-shell compact" style={{ background: 'var(--bg-soft)', borderRadius: '10px', height: '38px', padding: '0 12px' }}>
               <Search size={16} className="muted" />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder={
                   searchMethod === 'returnNo' ? 'Search by return number (e.g. RET...)' :
-                  searchMethod === 'entityName' ? 'Search by customer/supplier name...' :
-                  searchMethod === 'referenceNo' ? 'Search by original invoice/reference...' :
-                  'Search returns by No, Entity or Ref...'
-                } 
+                    searchMethod === 'entityName' ? 'Search by customer/supplier name...' :
+                      searchMethod === 'referenceNo' ? 'Search by original invoice/reference...' :
+                        'Search returns by No, Entity or Ref...'
+                }
                 className="ghost-input"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 style={{ fontSize: '0.85rem', color: 'var(--text)' }}
               />
               {search && (
-                <button 
+                <button
                   onClick={() => setSearch('')}
                   className="icon-btn ghost hover-danger"
                   style={{ width: '20px', height: '20px', border: 'none', background: 'transparent', display: 'grid', placeItems: 'center' }}
@@ -1240,10 +1305,10 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
               <Calendar size={16} className="accent-text" />
               <span className="muted small font-bold">Custom Date Range:</span>
             </div>
-            
+
             <div className="cluster gap-2">
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={startDate}
                 onChange={e => {
                   setStartDate(e.target.value);
@@ -1260,8 +1325,8 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                 }}
               />
               <span className="muted small">to</span>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={endDate}
                 onChange={e => {
                   setEndDate(e.target.value);
@@ -1281,7 +1346,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
           </div>
 
           {(search || startDate || endDate || dateFilterPreset !== 'all' || searchMethod !== 'all') && (
-            <button 
+            <button
               onClick={() => {
                 setSearch('');
                 setSearchMethod('all');
@@ -1325,14 +1390,14 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                   <td className="muted">{formatDate(ret.createdAt)}</td>
                   <td>
                     <div className="cluster gap-2">
-                      <div className="avatar" style={{ 
-                        width: '28px', 
-                        height: '28px', 
-                        borderRadius: '50%', 
-                        background: 'var(--accent-soft)', 
-                        color: 'var(--accent-strong)', 
-                        display: 'flex', 
-                        alignItems: 'center', 
+                      <div className="avatar" style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: 'var(--accent-soft)',
+                        color: 'var(--accent-strong)',
+                        display: 'flex',
+                        alignItems: 'center',
                         justifyContent: 'center',
                         fontWeight: 'bold',
                         fontSize: '0.8rem',
@@ -1348,8 +1413,15 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                       {ret.referenceNo || 'N/A'}
                     </span>
                   </td>
-                  <td className="text-right font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--danger)' }}>
-                    -{formatCurrency(ret.totalAmount)}
+                  <td className="text-right" style={{ fontFamily: 'var(--font-mono)' }}>
+                    <div className="font-bold" style={{ color: 'var(--danger)' }}>
+                      -{formatCurrency(ret.totalAmount)}
+                    </div>
+                    {(ret.paidAmount > 0 && ret.paidAmount < ret.totalAmount) && (
+                      <div className="small muted" style={{ fontSize: '0.75rem' }}>
+                        Paid: {formatCurrency(ret.paidAmount)}
+                      </div>
+                    )}
                   </td>
                   <td>
                     {ret.status === 'completed' ? (
@@ -1367,24 +1439,27 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                     )}
                   </td>
                   <td>
-                    <span className={`pill ${ret.paymentStatus === 'paid' ? 'success' : 'warning-soft'} small`} style={{ textTransform: 'uppercase' }}>
-                      {ret.paymentStatus === 'paid' ? 'PAID' : 'UNPAID'}
+                    <span className={`pill ${ret.paymentStatus === 'paid' ? 'success' : ret.paymentStatus === 'partial' ? 'warning' : 'warning-soft'} small`} style={{ textTransform: 'uppercase' }}>
+                      {ret.paymentStatus === 'paid' ? 'PAID' : ret.paymentStatus === 'partial' ? 'PARTIAL' : 'UNPAID'}
                     </span>
                   </td>
                   <td className="text-center" style={{ paddingRight: '24px' }}>
                     <div className="cluster gap-2 justify-end">
-                      {ret.type === 'supplier' && ret.entityId && ret.paymentStatus !== 'paid' && (
-                        <button 
-                          className="icon-btn ghost hover-accent" 
-                          title="Settle Return" 
-                          onClick={() => setSettlingReturn(ret)}
+                      {ret.entityId && ret.paymentStatus !== 'paid' && (
+                        <button
+                          className="icon-btn ghost hover-accent"
+                          title="Settle Return"
+                          onClick={() => {
+                            setSettlingReturn(ret)
+                            setSettlementAmount(ret.totalAmount - (ret.paidAmount || 0))
+                          }}
                         >
                           <DollarSign size={16} />
                         </button>
                       )}
-                      <button 
+                      <button
                         onClick={() => setSelectedReturn(ret)}
-                        className="icon-btn ghost hover-accent" 
+                        className="icon-btn ghost hover-accent"
                         title="View Details"
                       >
                         <Eye size={16} />
@@ -1414,7 +1489,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                 <span className="eyebrow">Return Information</span>
                 <h2 className="font-bold">{selectedReturn.returnNo}</h2>
               </div>
-              <button 
+              <button
                 onClick={() => setSelectedReturn(null)}
                 className="icon-btn ghost hover-danger"
                 style={{ borderRadius: '50%', width: '36px', height: '36px', display: 'grid', placeItems: 'center' }}
@@ -1493,34 +1568,46 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
                 <XCircle size={20} />
               </button>
             </div>
-            
+
             <div className="stack gap-4 mb-6">
-              <p className="muted small">Are you sure you want to mark this return as fully settled by the supplier?</p>
-              
+              <p className="muted small">Are you sure you want to record a payment for this return?</p>
+
               <div className="card p-3 stack gap-2" style={{ background: 'var(--bg-soft)', borderRadius: '12px' }}>
                 <div className="between">
                   <span className="muted small">Return No</span>
                   <span className="font-mono font-bold">{settlingReturn.returnNo}</span>
                 </div>
                 <div className="between">
-                  <span className="muted small">Supplier</span>
+                  <span className="muted small">{settlingReturn.type === 'customer' ? 'Customer' : 'Supplier'}</span>
                   <span className="font-bold">{settlingReturn.entityName}</span>
                 </div>
                 <div className="between pt-2 mt-2" style={{ borderTop: '1px solid var(--border)' }}>
-                  <span className="muted small">Settlement Amount</span>
-                  <span className="font-mono font-bold accent-text">{formatCurrency(settlingReturn.totalAmount)}</span>
+                  <span className="muted small">Remaining Balance</span>
+                  <span className="font-mono font-bold accent-text">{formatCurrency(settlingReturn.totalAmount - (settlingReturn.paidAmount || 0))}</span>
                 </div>
+              </div>
+
+              <div className="field">
+                <span className="font-bold small muted">Payment Amount</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="input-shell"
+                  value={settlementAmount}
+                  onChange={(e) => setSettlementAmount(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '10px' }}
+                />
               </div>
             </div>
 
             <div className="cluster gap-3 end">
               <button className="btn btn-ghost" onClick={() => setSettlingReturn(null)}>Cancel</button>
-              <button 
-                className="btn btn-primary" 
+              <button
+                className="btn btn-primary"
                 onClick={handleSettle}
                 disabled={settling}
               >
-                {settling ? 'Settling...' : 'Confirm Settlement'}
+                {settling ? 'Processing...' : 'Confirm Payment'}
               </button>
             </div>
           </div>
