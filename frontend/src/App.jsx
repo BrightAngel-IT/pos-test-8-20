@@ -114,6 +114,7 @@ function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const [isPending, startTransition] = useTransition()
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   // Map pathname to activeView for legacy component compatibility
   const activeView = location.pathname === '/' ? 'overview' : location.pathname.slice(1).replace('/', '-')
@@ -729,10 +730,19 @@ function App() {
         handleLogout={handleLogout}
         unreadCount={unreadCount}
         company={company}
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
       />
 
       <main className="workspace stack gap-5">
-        <Topbar activeView={activeView} session={session} overview={overview} theme={theme} setTheme={setTheme} />
+        <Topbar 
+          activeView={activeView} 
+          session={session} 
+          overview={overview} 
+          theme={theme} 
+          setTheme={setTheme} 
+          setIsSidebarOpen={setIsSidebarOpen}
+        />
         <NoticeBanner notice={notice} />
 
         {pageLoading && (

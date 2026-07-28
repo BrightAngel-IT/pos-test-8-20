@@ -26,6 +26,7 @@ import { SectionHeading } from '../../components/SectionHeading'
 import { Pagination } from '../../components/Pagination'
 import _BarcodeReader from 'react-barcode-reader'
 const BarcodeReader = _BarcodeReader.default || _BarcodeReader
+const apiUrl = import.meta.env.VITE_API_URL
 
 /**
  * Returns Component
@@ -1310,8 +1311,8 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
           <div className="cluster gap-3 wrap-row">
             <div className="cluster gap-2">
               <span className="muted small font-bold uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.05em' }}>Branch:</span>
-              <select 
-                value={selectedBranch} 
+              <select
+                value={selectedBranch}
                 onChange={e => setSelectedBranch(e.target.value)}
                 style={{
                   height: '32px',
