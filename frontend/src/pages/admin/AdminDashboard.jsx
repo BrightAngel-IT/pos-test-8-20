@@ -4,7 +4,7 @@
  * React UI page component representing the AdminDashboard view.
  */
 
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Warehouse,
@@ -16,6 +16,7 @@ import {
   AlertCircle,
   FileText,
   UserPlus,
+  X,
 } from 'lucide-react'
 import { MetricCard } from '../../components/MetricCard'
 import { SectionHeading } from '../../components/SectionHeading'
@@ -24,6 +25,12 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 
 export function AdminDashboard({ overview, session, startTransition }) {
   const navigate = useNavigate()
+  
+  const [showAllStock, setShowAllStock] = useState(false)
+  const [showAllVelocity, setShowAllVelocity] = useState(false)
+  const [showAllInvoices, setShowAllInvoices] = useState(false)
+  const displayLimit = 3;
+
   const quickActions = [
     { label: 'New Bill', icon: ShoppingCart, path: '/pos', color: 'var(--accent)' },
     { label: 'Add SKU', icon: PackagePlus, path: '/inventory', color: 'var(--info)' },
@@ -87,7 +94,7 @@ export function AdminDashboard({ overview, session, startTransition }) {
             text="High-priority replenishment items."
           />
           <div className="stack gap-3">
-            {(overview?.lowStockProducts || []).slice(0, 5).map((product) => (
+            {(overview?.lowStockProducts || []).slice(0, displayLimit).map((product) => (
               <div key={product._id} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '16px', border: '1px solid var(--border)' }}>
                 <div className="cluster gap-3">
                   <img src={product.image} alt={product.name} className="thumb" />
@@ -103,6 +110,17 @@ export function AdminDashboard({ overview, session, startTransition }) {
                 </div>
               </div>
             ))}
+            {(overview?.lowStockProducts?.length || 0) > displayLimit && (
+              <div className="pt-3 mt-2 text-center" style={{ borderTop: '1px solid var(--border)' }}>
+                <button 
+                  className="btn btn-secondary w-full" 
+                  style={{ borderRadius: '14px' }}
+                  onClick={() => setShowAllStock(true)}
+                >
+                  See All ({overview.lowStockProducts.length})
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -112,7 +130,7 @@ export function AdminDashboard({ overview, session, startTransition }) {
             text="Best selling products this period."
           />
           <div className="stack gap-3">
-            {(overview?.topProducts || []).slice(0, 5).map((product) => (
+            {(overview?.topProducts || []).slice(0, displayLimit).map((product) => (
               <div key={product.productId} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '16px', border: '1px solid var(--border)' }}>
                 <div className="cluster gap-3">
                   <img src={product.image} alt={product.name} className="thumb" />
@@ -126,6 +144,17 @@ export function AdminDashboard({ overview, session, startTransition }) {
                 <div className="pill success" style={{ background: 'var(--accent-soft)', color: 'var(--accent-strong)' }}>Peak</div>
               </div>
             ))}
+            {(overview?.topProducts?.length || 0) > displayLimit && (
+              <div className="pt-3 mt-2 text-center" style={{ borderTop: '1px solid var(--border)' }}>
+                <button 
+                  className="btn btn-secondary w-full" 
+                  style={{ borderRadius: '14px' }}
+                  onClick={() => setShowAllVelocity(true)}
+                >
+                  See All ({overview.topProducts.length})
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -135,7 +164,7 @@ export function AdminDashboard({ overview, session, startTransition }) {
             text="Recent transaction stream."
           />
           <div className="stack gap-3">
-            {(overview?.recentSales || []).slice(0, 5).map((sale) => (
+            {(overview?.recentSales || []).slice(0, displayLimit).map((sale) => (
               <div key={sale._id} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '16px', border: '1px solid var(--border)' }}>
                 <div className="stack gap-1">
                   <div className="cluster gap-2">
@@ -149,6 +178,17 @@ export function AdminDashboard({ overview, session, startTransition }) {
                 <strong style={{ color: 'var(--accent-strong)' }}>{formatCurrency(sale.total)}</strong>
               </div>
             ))}
+            {(overview?.recentSales?.length || 0) > displayLimit && (
+              <div className="pt-3 mt-2 text-center" style={{ borderTop: '1px solid var(--border)' }}>
+                <button 
+                  className="btn btn-secondary w-full" 
+                  style={{ borderRadius: '14px' }}
+                  onClick={() => setShowAllInvoices(true)}
+                >
+                  See All ({overview.recentSales.length})
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -171,6 +211,86 @@ export function AdminDashboard({ overview, session, startTransition }) {
           </ResponsiveContainer>
         </div>
       </section>
+
+      {/* Stock Watchlist Modal */}
+      {showAllStock && (
+        <div className="modal-overlay animate-fade" onClick={() => setShowAllStock(false)} style={{ position: 'fixed', inset: 0, backdropFilter: 'blur(12px)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: '20px', background: 'rgba(0,0,0,0.4)' }}>
+          <div className="modal-content panel glass-panel p-6 animate-fade-up" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '100%' }}>
+            <div className="between align-center mb-6">
+              <SectionHeading title="All Stock Watchlist" text="Complete list of high-priority replenishment items." />
+              <button className="icon-btn" onClick={() => setShowAllStock(false)}><X size={20} /></button>
+            </div>
+            <div className="stack gap-3 overflow-auto" style={{ maxHeight: '60vh', paddingRight: '8px' }}>
+              {(overview?.lowStockProducts || []).map((product) => (
+                <div key={product._id} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '16px', border: '1px solid var(--border)' }}>
+                  <div className="cluster gap-3">
+                    <img src={product.image} alt={product.name} className="thumb" />
+                    <div>
+                      <strong style={{ fontSize: '0.95rem' }}>{product.name}</strong>
+                      <p className="muted small">{product.quantityInStock} {product.unit} left · {product.rackLabel}</p>
+                    </div>
+                  </div>
+                  <div className={`pill ${product.quantityInStock <= 0 ? 'danger' : 'warning'}`}>
+                    {product.quantityInStock <= 0 ? 'Empty' : 'Low'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Top Velocity Modal */}
+      {showAllVelocity && (
+        <div className="modal-overlay animate-fade" onClick={() => setShowAllVelocity(false)} style={{ position: 'fixed', inset: 0, backdropFilter: 'blur(12px)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: '20px', background: 'rgba(0,0,0,0.4)' }}>
+          <div className="modal-content panel glass-panel p-6 animate-fade-up" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px', width: '100%' }}>
+            <div className="between align-center mb-6">
+              <SectionHeading title="All Top Velocity SKUs" text="Complete list of best selling products this period." />
+              <button className="icon-btn" onClick={() => setShowAllVelocity(false)}><X size={20} /></button>
+            </div>
+            <div className="stack gap-3 overflow-auto" style={{ maxHeight: '60vh', paddingRight: '8px' }}>
+              {(overview?.topProducts || []).map((product) => (
+                <div key={product.productId} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '16px', border: '1px solid var(--border)' }}>
+                  <div className="cluster gap-3">
+                    <img src={product.image} alt={product.name} className="thumb" />
+                    <div>
+                      <strong style={{ fontSize: '0.95rem' }}>{product.name}</strong>
+                      <p className="muted small">{product.quantity} sold · {formatCurrency(product.revenue)}</p>
+                    </div>
+                  </div>
+                  <div className="pill success" style={{ background: 'var(--accent-soft)', color: 'var(--accent-strong)' }}>Peak</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Latest Invoices Modal */}
+      {showAllInvoices && (
+        <div className="modal-overlay animate-fade" onClick={() => setShowAllInvoices(false)} style={{ position: 'fixed', inset: 0, backdropFilter: 'blur(12px)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: '20px', background: 'rgba(0,0,0,0.4)' }}>
+          <div className="modal-content panel glass-panel p-6 animate-fade-up" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px', width: '100%' }}>
+            <div className="between align-center mb-6">
+              <SectionHeading title="All Latest Invoices" text="Complete list of recent transaction stream." />
+              <button className="icon-btn" onClick={() => setShowAllInvoices(false)}><X size={20} /></button>
+            </div>
+            <div className="stack gap-3 overflow-auto" style={{ maxHeight: '60vh', paddingRight: '8px' }}>
+              {(overview?.recentSales || []).map((sale) => (
+                <div key={sale._id} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '16px', border: '1px solid var(--border)' }}>
+                  <div className="stack gap-1">
+                    <div className="cluster gap-2">
+                      <FileText size={14} className="muted" />
+                      <strong style={{ fontSize: '0.95rem' }}>{sale.invoiceNumber.replace(/^saayi-?/i, '').replace(/^c-/i, 'INVC-')}</strong>
+                    </div>
+                    <p className="muted small">{sale.cashierName} · {formatDate(sale.createdAt)}</p>
+                  </div>
+                  <strong style={{ color: 'var(--accent-strong)' }}>{formatCurrency(sale.total)}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -16,7 +16,8 @@ import {
   TrendingUp,
   ArrowUpRight,
   Package,
-  Building2
+  Building2,
+  X
 } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { MetricCard } from '../../components/MetricCard'
@@ -26,8 +27,10 @@ import { Pagination } from '../../components/Pagination'
 
 export function SuperAdminReports({ api, session }) {
   const location = useLocation()
-  const ranges = ['daily', 'weekly', 'monthly', 'annual']
+  const ranges = ['daily', 'weekly', 'monthly', 'annual', 'custom']
   const [reportRange, setReportRange] = useState('weekly')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [selectedBranch, setSelectedBranch] = useState(location.state?.branch || '') // empty string means "All Branches"
   const [branches, setBranches] = useState([])
   const [report, setReport] = useState(null)
@@ -36,10 +39,10 @@ export function SuperAdminReports({ api, session }) {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
-  const [catPage, setCatPage] = useState(1)
-  const [skuPage, setSkuPage] = useState(1)
-  const catItemsPerPage = 7
-  const skuItemsPerPage = 5
+  const [showAllCats, setShowAllCats] = useState(false)
+  const [showAllSkus, setShowAllSkus] = useState(false)
+  const catItemsLimit = 3
+  const skuItemsLimit = 3
 
   useEffect(() => {
     async function loadBranches() {
@@ -61,6 +64,10 @@ export function SuperAdminReports({ api, session }) {
         if (selectedBranch) {
           url += `&branch=${encodeURIComponent(selectedBranch)}`
         }
+        if (reportRange === 'custom') {
+          if (startDate) url += `&startDate=${startDate}`
+          if (endDate) url += `&endDate=${endDate}`
+        }
         const res = await api.get(url, authConfig(session.token))
         setReport(res.data)
       } catch (err) {
@@ -71,7 +78,7 @@ export function SuperAdminReports({ api, session }) {
     }
     loadReport()
     setCurrentPage(1)
-  }, [reportRange, selectedBranch])
+  }, [reportRange, selectedBranch, startDate, endDate])
 
   const filteredSales = useMemo(() => {
     const sales = report?.recentSales || []
@@ -94,16 +101,10 @@ export function SuperAdminReports({ api, session }) {
   }, [filteredSales, currentPage])
 
   const catBreakdown = report?.categoryBreakdown || []
-  const totalCatPages = Math.ceil(catBreakdown.length / catItemsPerPage)
-  const paginatedCats = useMemo(() => {
-    return catBreakdown.slice((catPage - 1) * catItemsPerPage, catPage * catItemsPerPage)
-  }, [catBreakdown, catPage])
+  const displayedCats = catBreakdown.slice(0, catItemsLimit)
 
   const topSkus = report?.topSellingProducts || []
-  const totalSkuPages = Math.ceil(topSkus.length / skuItemsPerPage)
-  const paginatedSkus = useMemo(() => {
-    return topSkus.slice((skuPage - 1) * skuItemsPerPage, skuPage * skuItemsPerPage)
-  }, [topSkus, skuPage])
+  const displayedSkus = topSkus.slice(0, skuItemsLimit)
 
   if (loading && !report) {
     return (
@@ -165,6 +166,24 @@ export function SuperAdminReports({ api, session }) {
               </button>
             ))}
           </div>
+
+          {reportRange === 'custom' && (
+            <div className="cluster gap-2 align-center animate-fade" style={{ background: 'var(--bg-soft)', padding: '4px 12px', borderRadius: '14px', border: '1px solid var(--border)', height: '36px' }}>
+              <input 
+                type="date" 
+                value={startDate} 
+                onChange={e => setStartDate(e.target.value)} 
+                style={{ background: 'transparent', border: 'none', padding: '0', fontSize: '0.8rem', color: 'var(--text)', outline: 'none' }} 
+              />
+              <span className="muted small">to</span>
+              <input 
+                type="date" 
+                value={endDate} 
+                onChange={e => setEndDate(e.target.value)} 
+                style={{ background: 'transparent', border: 'none', padding: '0', fontSize: '0.8rem', color: 'var(--text)', outline: 'none' }} 
+              />
+            </div>
+          )}
 
           <button 
             className="btn btn-secondary glow-on-hover" 
@@ -248,7 +267,7 @@ export function SuperAdminReports({ api, session }) {
         <div className="panel p-6 stack gap-5" style={{ alignSelf: 'start' }}>
           <SectionHeading title="Category Volume" text="Revenue performance by product group." />
           <div className="stack gap-3">
-            {paginatedCats.map((cat, idx) => (
+            {displayedCats.map((cat, idx) => (
               <div key={idx} className="stack gap-2">
                 <div className="between small">
                   <strong>{cat.label}</strong>
@@ -265,17 +284,17 @@ export function SuperAdminReports({ api, session }) {
                 </div>
               </div>
             ))}
-            {paginatedCats.length === 0 && <p className="muted small text-center">No categories recorded.</p>}
+            {displayedCats.length === 0 && <p className="muted small text-center">No categories recorded.</p>}
             
-            {totalCatPages > 1 && (
-              <div className="pt-3 mt-2" style={{ borderTop: '1px solid var(--border)' }}>
-                <Pagination 
-                  currentPage={catPage} 
-                  totalPages={totalCatPages} 
-                  onPageChange={setCatPage} 
-                  totalItems={catBreakdown.length} 
-                  itemsPerPage={catItemsPerPage} 
-                />
+            {catBreakdown.length > catItemsLimit && (
+              <div className="pt-3 mt-2 text-center" style={{ borderTop: '1px solid var(--border)' }}>
+                <button 
+                  className="btn btn-secondary w-full" 
+                  style={{ borderRadius: '14px' }}
+                  onClick={() => setShowAllCats(true)}
+                >
+                  See All ({catBreakdown.length})
+                </button>
               </div>
             )}
           </div>
@@ -285,7 +304,7 @@ export function SuperAdminReports({ api, session }) {
         <div className="panel p-6 stack gap-5" style={{ alignSelf: 'start' }}>
           <SectionHeading title="Top Velocity SKUs" text="High velocity products by billing contribution." />
           <div className="stack gap-3">
-            {paginatedSkus.map((p, idx) => (
+            {displayedSkus.map((p, idx) => (
               <div key={idx} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '16px', border: '1px solid var(--border)' }}>
                 <div className="cluster gap-3">
                   <img src={p.image} alt={p.name} className="thumb" style={{ borderRadius: '8px' }} />
@@ -297,17 +316,17 @@ export function SuperAdminReports({ api, session }) {
                 <strong className="accent-text" style={{ fontSize: '0.9rem' }}>{formatCurrency(p.revenue)}</strong>
               </div>
             ))}
-            {paginatedSkus.length === 0 && <p className="muted small text-center">No velocity data.</p>}
+            {displayedSkus.length === 0 && <p className="muted small text-center">No velocity data.</p>}
             
-            {totalSkuPages > 1 && (
-              <div className="pt-3 mt-2" style={{ borderTop: '1px solid var(--border)' }}>
-                <Pagination 
-                  currentPage={skuPage} 
-                  totalPages={totalSkuPages} 
-                  onPageChange={setSkuPage} 
-                  totalItems={topSkus.length} 
-                  itemsPerPage={skuItemsPerPage} 
-                />
+            {topSkus.length > skuItemsLimit && (
+              <div className="pt-3 mt-2 text-center" style={{ borderTop: '1px solid var(--border)' }}>
+                <button 
+                  className="btn btn-secondary w-full" 
+                  style={{ borderRadius: '14px' }}
+                  onClick={() => setShowAllSkus(true)}
+                >
+                  See All ({topSkus.length})
+                </button>
               </div>
             )}
           </div>
@@ -384,6 +403,66 @@ export function SuperAdminReports({ api, session }) {
         </div>
       </div>
 
+      {/* Category Modal */}
+      {showAllCats && (
+        <div className="modal-overlay animate-fade" onClick={() => setShowAllCats(false)} style={{ position: 'fixed', inset: 0, backdropFilter: 'blur(12px)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: '20px', background: 'rgba(0,0,0,0.4)' }}>
+          <div className="modal-content panel glass-panel p-6 animate-fade-up" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '100%' }}>
+            <div className="between align-center mb-6">
+              <SectionHeading title="All Category Volumes" text="Complete list of revenue performance by product group." />
+              <button className="icon-btn" onClick={() => setShowAllCats(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="stack gap-3 overflow-auto" style={{ maxHeight: '60vh', paddingRight: '8px' }}>
+              {catBreakdown.map((cat, idx) => (
+                <div key={idx} className="stack gap-2">
+                  <div className="between small">
+                    <strong>{cat.label}</strong>
+                    <span className="accent-text font-bold">{formatCurrency(cat.value)}</span>
+                  </div>
+                  <div style={{ height: '8px', background: 'var(--bg-soft)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div 
+                      style={{ 
+                        height: '100%', 
+                        background: 'linear-gradient(90deg, var(--accent), var(--accent-strong))', 
+                        width: `${report?.summary.totalRevenue ? (cat.value / report.summary.totalRevenue) * 100 : 0}%` 
+                      }} 
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SKUs Modal */}
+      {showAllSkus && (
+        <div className="modal-overlay animate-fade" onClick={() => setShowAllSkus(false)} style={{ position: 'fixed', inset: 0, backdropFilter: 'blur(12px)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: '20px', background: 'rgba(0,0,0,0.4)' }}>
+          <div className="modal-content panel glass-panel p-6 animate-fade-up" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px', width: '100%' }}>
+            <div className="between align-center mb-6">
+              <SectionHeading title="All Top Velocity SKUs" text="Complete list of high velocity products by billing contribution." />
+              <button className="icon-btn" onClick={() => setShowAllSkus(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="stack gap-3 overflow-auto" style={{ maxHeight: '60vh', paddingRight: '8px' }}>
+              {topSkus.map((p, idx) => (
+                <div key={idx} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '16px', border: '1px solid var(--border)' }}>
+                  <div className="cluster gap-3">
+                    <img src={p.image} alt={p.name} className="thumb" style={{ borderRadius: '8px' }} />
+                    <div>
+                      <strong style={{ fontSize: '0.9rem' }}>{p.name}</strong>
+                      <p className="muted small" style={{ fontSize: '0.75rem' }}>{p.quantity} units sold · {p.category}</p>
+                    </div>
+                  </div>
+                  <strong className="accent-text" style={{ fontSize: '0.9rem' }}>{formatCurrency(p.revenue)}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

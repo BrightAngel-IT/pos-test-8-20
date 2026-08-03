@@ -1076,8 +1076,78 @@ async function getRecentSales(limit = 8) {
   return sales.slice(0, limit);
 }
 
-function createTrend(range, sales) {
+function createTrend(range, sales, customStartDate = null, customEndDate = null) {
   const now = new Date();
+
+  if (range === 'custom') {
+    const buckets = [];
+    let start = customStartDate ? new Date(customStartDate) : now;
+    let end = customEndDate ? new Date(customEndDate) : now;
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+
+    const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const step = diffDays <= 31 ? 'daily' : (diffDays <= 180 ? 'weekly' : 'monthly');
+
+    if (step === 'daily') {
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        buckets.push({
+          key,
+          label: `${d.toLocaleDateString('en-US', { month: 'short' })} ${d.getDate()}`,
+          revenue: 0,
+          orders: 0
+        });
+      }
+    } else if (step === 'weekly') {
+      let current = startOfWeek(start);
+      while (current <= end) {
+        const key = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+        buckets.push({
+          key,
+          label: `W${current.toLocaleDateString('en-US', { month: 'short' })} ${current.getDate()}`,
+          revenue: 0,
+          orders: 0
+        });
+        current.setDate(current.getDate() + 7);
+      }
+    } else {
+      let current = new Date(start.getFullYear(), start.getMonth(), 1);
+      while (current <= end) {
+        const key = `${current.getFullYear()}-${current.getMonth() + 1}`;
+        buckets.push({
+          key,
+          label: `${current.toLocaleDateString('en-US', { month: 'short' })} ${current.getFullYear()}`,
+          revenue: 0,
+          orders: 0
+        });
+        current.setMonth(current.getMonth() + 1);
+      }
+    }
+
+    const map = new Map(buckets.map(b => [b.key, b]));
+
+    sales.forEach((sale) => {
+      const saleDate = new Date(sale.createdAt);
+      let key = '';
+      if (step === 'daily') {
+        key = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}-${String(saleDate.getDate()).padStart(2, '0')}`;
+      } else if (step === 'weekly') {
+        const wDate = startOfWeek(saleDate);
+        key = `${wDate.getFullYear()}-${String(wDate.getMonth() + 1).padStart(2, '0')}-${String(wDate.getDate()).padStart(2, '0')}`;
+      } else {
+        key = `${saleDate.getFullYear()}-${saleDate.getMonth() + 1}`;
+      }
+      const bucket = map.get(key);
+      if (bucket) {
+        bucket.revenue = formatCurrencyAmount(bucket.revenue + Number(sale.total));
+        bucket.orders += 1;
+      }
+    });
+
+    return buckets;
+  }
+
   const buckets = [];
 
   if (range === 'daily') {
@@ -1177,13 +1247,25 @@ function getRangeStart(range) {
   return new Date(now.getFullYear() - 4, 0, 1);
 }
 
-async function getSalesReport(range = 'weekly', branchFilter = null) {
+async function getSalesReport(range = 'weekly', branchFilter = null, customStartDate = null, customEndDate = null) {
   const sales = await getAllSales();
   const products = await getAllProducts();
   const productSalesMap = new Map();
-  const validRange = ['daily', 'weekly', 'monthly', 'annual'].includes(range) ? range : 'weekly';
-  const rangeStart = getRangeStart(validRange);
-  let filteredSales = sales.filter((sale) => new Date(sale.createdAt) >= rangeStart);
+  const validRange = ['daily', 'weekly', 'monthly', 'annual', 'custom'].includes(range) ? range : 'weekly';
+  
+  let rangeStart, rangeEnd;
+  if (validRange === 'custom') {
+    rangeStart = customStartDate ? new Date(customStartDate) : new Date(0);
+    rangeEnd = customEndDate ? new Date(new Date(customEndDate).setHours(23, 59, 59, 999)) : new Date();
+  } else {
+    rangeStart = getRangeStart(validRange);
+    rangeEnd = new Date();
+  }
+
+  let filteredSales = sales.filter((sale) => {
+    const d = new Date(sale.createdAt);
+    return d >= rangeStart && d <= rangeEnd;
+  });
   if (branchFilter) {
     const isMain = ['main branch', 'main warehouse', 'main'].includes(String(branchFilter).toLowerCase());
     filteredSales = filteredSales.filter((sale) => {
@@ -1258,7 +1340,7 @@ async function getSalesReport(range = 'weekly', branchFilter = null) {
       unitsSold,
       averageTicket: totalOrders ? formatCurrencyAmount(totalRevenue / totalOrders) : 0,
     },
-    trend: createTrend(validRange, filteredSales),
+    trend: createTrend(validRange, filteredSales, customStartDate, customEndDate),
     paymentBreakdown: [...paymentBreakdownMap.entries()].map(([label, value]) => ({
       label,
       value,

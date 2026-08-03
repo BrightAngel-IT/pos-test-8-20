@@ -15,7 +15,8 @@ router.get('/sales', requireAuth, requireRole(['super_admin', 'admin']), async (
   try {
     const range = req.query.range || 'weekly';
     const branchFilter = req.query.branch || (req.user.role !== 'super_admin' ? req.user.branch : null);
-    const report = await getSalesReport(range, branchFilter);
+    const { startDate, endDate } = req.query;
+    const report = await getSalesReport(range, branchFilter, startDate, endDate);
     res.json(report);
   } catch (error) {
     next(error);
