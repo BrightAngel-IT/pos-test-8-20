@@ -121,10 +121,13 @@ function App() {
 
   useEffect(() => {
     syncOfflineSales()
-    const handleOnline = () => {
+    const handleOnline = async () => {
       setIsOnline(true)
-      syncOfflineSales()
+      await syncOfflineSales()
       alert("Internet connection restored. Syncing offline data...")
+      if (session?.token) {
+        refreshCoreData()
+      }
     }
     const handleOffline = () => {
       setIsOnline(false)
@@ -136,7 +139,7 @@ function App() {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [])
+  }, [session])
 
   // Map pathname to activeView for legacy component compatibility
   const activeView = location.pathname === '/' ? 'overview' : location.pathname.slice(1).replace('/', '-')
@@ -668,6 +671,38 @@ function App() {
     }
   }
 
+  const applyOptimisticUpdate = (saleData) => {
+    const localSaleObj = {
+      _id: `OFFLINE-${Date.now()}`,
+      invoiceNumber: `OFFLINE-${Date.now()}`,
+      customerName: saleData.customerName,
+      customerId: saleData.customerId,
+      paymentMethod: saleData.paymentMethod,
+      total: cartTotal,
+      discount: discountAmount,
+      createdAt: new Date().toISOString(),
+      cashierName: session?.user?.name || 'Cashier',
+      branch: session?.user?.branch || 'Branch',
+      items: saleData.items,
+      isOffline: true
+    };
+    
+    setSales(prev => [localSaleObj, ...prev]);
+    setOverview(prev => {
+      if (!prev) return prev;
+      const newOverview = { ...prev };
+      if (newOverview.metrics) {
+        if (newOverview.metrics.revenueMonthly !== undefined) newOverview.metrics.revenueMonthly += localSaleObj.total;
+        if (newOverview.metrics.revenueToday !== undefined) newOverview.metrics.revenueToday += localSaleObj.total;
+      }
+      if (newOverview.revenueToday !== undefined) newOverview.revenueToday += localSaleObj.total;
+      if (newOverview.recentSales) {
+        newOverview.recentSales = [localSaleObj, ...newOverview.recentSales].slice(0, 10);
+      }
+      return newOverview;
+    });
+  };
+
   async function handleCheckout(event) {
     event.preventDefault()
     if (cart.length === 0) return
@@ -718,6 +753,11 @@ function App() {
 
       if (!navigator.onLine) {
         await saveSaleOffline(saleData);
+        setProducts(prev => prev.map(p => {
+          const item = cart.find(c => c.productId === p._id);
+          return item ? { ...p, quantityInStock: Math.max(0, p.quantityInStock - item.quantity) } : p;
+        }));
+        applyOptimisticUpdate(saleData);
         resetCartAndForm();
         setNotice({ type: 'success', text: 'You are offline. Sale saved locally and will sync when internet returns.' })
       } else {
@@ -730,6 +770,11 @@ function App() {
         } catch (error) {
           if (!error.response) { // Network error like connection drop
             await saveSaleOffline(saleData);
+            setProducts(prev => prev.map(p => {
+              const item = cart.find(c => c.productId === p._id);
+              return item ? { ...p, quantityInStock: Math.max(0, p.quantityInStock - item.quantity) } : p;
+            }));
+            applyOptimisticUpdate(saleData);
             resetCartAndForm();
             setNotice({ type: 'warning', text: 'Network issue detected. Sale saved offline.' })
           } else {
@@ -932,7 +977,7 @@ function App() {
             <Route path="/purchases" element={<AdminRoute session={session}><Purchases api={api} session={session} onNotice={setNotice} refreshCoreData={refreshCoreData} /></AdminRoute>} />
             <Route path="/invoices" element={<AdminRoute session={session}><Invoices api={api} session={session} onNotice={setNotice} sales={sales} customers={customers} company={company} /></AdminRoute>} />
             <Route path="/payments" element={<AdminRoute session={session}><PaymentAllocation api={api} session={session} onNotice={setNotice} /></AdminRoute>} />
-            <Route path="/accounts/:type/:id" element={<AccountStatement api={api} session={session} onNotice={setNotice} company={company} />} />
+            <Route path="/accounts/:type/:id" element={<AccountStatement api={api} session={session} onNotice={setNotice} company={company} customers={customers} />} />
             <Route path="/returns" element={<Returns api={api} session={session} onNotice={setNotice} refreshCoreData={refreshCoreData} />} />
 
             <Route path="/notifications" element={

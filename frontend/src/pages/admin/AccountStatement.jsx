@@ -34,8 +34,9 @@ import {
 } from 'lucide-react'
 import { authConfig, formatCurrency, formatDate, getBaseUrl } from '../../utils'
 import { SectionHeading } from '../../components/SectionHeading'
+import { getOfflineSales } from '../../utils/offlineSync'
 
-export default function AccountStatement({ api, session, onNotice, company }) {
+export default function AccountStatement({ api, session, onNotice, company, customers }) {
   const { type, id } = useParams()
   const navigate = useNavigate()
 
@@ -79,28 +80,76 @@ export default function AccountStatement({ api, session, onNotice, company }) {
         type === 'customer' ? api.get(`/sales?customerId=${id}`, config) : Promise.resolve({ data: { sales: [] } })
       ])
 
-      setEntity(entityRes.data)
+      let entityData = null;
+      try {
+        const entityRes = await api.get(`/${type}s/${id}`, config);
+        entityData = entityRes.data;
+      } catch (err) {
+        if (!navigator.onLine && type === 'customer' && customers) {
+          entityData = customers.find(c => c._id === id);
+        } else {
+          throw err;
+        }
+      }
+
+      setEntity(entityData)
       setInvoices(invoicesRes.data || [])
       setPayments(paymentsRes.data || [])
       setReturns(returnsRes.data || [])
 
       const allSales = salesRes.data.sales || [];
-      const immediate = allSales.map(sale => {
+      
+      // Fetch offline sales for this customer if offline or to show pending ones
+      let offlineSales = [];
+      if (type === 'customer') {
+        const pendingSales = await getOfflineSales();
+        offlineSales = pendingSales.filter(s => s.customerId === id);
+      }
+
+      // Add offline sales that had a credit portion to the invoices array
+      const offlineInvoices = offlineSales.map(sale => {
         let creditAmount = 0;
         if (sale.paymentMethod === 'credit') {
-           creditAmount = sale.total;
+           creditAmount = sale.total || sale.items?.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0) || 0;
         } else if (sale.paymentMethod === 'split' && sale.splitPayments) {
            const creditPart = sale.splitPayments.find(p => p.method === 'credit');
            if (creditPart) creditAmount = Number(creditPart.amount || 0);
         }
-        const immediateAmount = sale.total - creditAmount;
+        if (creditAmount > 0) {
+            return {
+                _id: sale.localId,
+                date: new Date(sale.localId).toISOString(),
+                invoiceNo: `OFFLINE-INV-${sale.localId}`,
+                totalAmount: creditAmount,
+                status: 'UNPAID',
+                isOffline: true
+            };
+        }
+        return null;
+      }).filter(Boolean);
+
+      setInvoices([...(invoicesRes.data || []), ...offlineInvoices]);
+      setPayments(paymentsRes.data || [])
+      setReturns(returnsRes.data || [])
+
+      const immediate = [...allSales, ...offlineSales].map(sale => {
+        let creditAmount = 0;
+        if (sale.paymentMethod === 'credit') {
+           creditAmount = sale.total || sale.items?.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0) || 0;
+        } else if (sale.paymentMethod === 'split' && sale.splitPayments) {
+           const creditPart = sale.splitPayments.find(p => p.method === 'credit');
+           if (creditPart) creditAmount = Number(creditPart.amount || 0);
+        }
+        const total = sale.total || (sale.items?.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0) || 0) - (sale.discount || 0);
+        const immediateAmount = total - creditAmount;
         if (immediateAmount > 0) {
            return {
-              _id: sale._id,
-              date: sale.createdAt,
-              reference: sale.invoiceNumber,
+              _id: sale._id || sale.localId,
+              date: sale.createdAt || new Date(sale.localId).toISOString(),
+              reference: sale.invoiceNumber || `OFFLINE-${sale.localId}`,
               method: sale.paymentMethod === 'split' ? 'SPLIT (CASH/CARD)' : sale.paymentMethod.toUpperCase(),
               amount: immediateAmount,
+              isOffline: sale.isOffline,
               raw: sale
            };
         }
@@ -108,6 +157,7 @@ export default function AccountStatement({ api, session, onNotice, company }) {
       }).filter(Boolean);
       setImmediatePayments(immediate);
     } catch (err) {
+      console.error(err);
       onNotice?.({ type: 'error', text: 'Failed to load account data.' })
     } finally {
       setLoading(false)

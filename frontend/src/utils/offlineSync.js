@@ -21,6 +21,16 @@ export const saveSaleOffline = async (saleData) => {
     }
 };
 
+export const getOfflineSales = async () => {
+    try {
+        return await localforage.getItem('pendingSales') || [];
+    } catch (error) {
+        console.error("Error fetching offline sales:", error);
+        return [];
+    }
+};
+
+
 export const syncOfflineSales = async () => {
     if (!navigator.onLine) return; // Only sync if we are online
 
