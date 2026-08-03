@@ -12,7 +12,9 @@ const { createReturn, getReturns, settleReturn } = require('../services/store');
 
 router.get('/', requireAuth, async (req, res, next) => {
   try {
-    const branchFilter = req.query.branch || (req.user.role !== 'super_admin' ? req.user.branch : null);
+    // If fetching for a specific customer statement (entityId is present), bypass the branch filter 
+    // so the statement is the exact same for Cashiers and Admins.
+    const branchFilter = req.query.branch || (req.query.entityId ? null : (req.user.role !== 'super_admin' ? req.user.branch : null));
     const returns = await getReturns({ ...req.query, branch: branchFilter });
     res.json(returns);
   } catch (error) {
