@@ -29,6 +29,7 @@ const transferRoutes = require('./routes/transferRoutes');
  */
 function createApp() {
   const app = express();
+  app.disable('etag'); // Prevent 304 Not Modified responses so Workbox can cache the JSON body
 
   // Define allowed origins for CORS. Supports regex for localhost and vercel apps.
   let allowedOrigins = [

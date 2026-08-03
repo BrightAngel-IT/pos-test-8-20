@@ -6,6 +6,7 @@ import {
 } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { saveSaleOffline, syncOfflineSales } from './utils/offlineSync';
 import _BarcodeReader from 'react-barcode-reader'
 
 const BarcodeReader = _BarcodeReader.default || _BarcodeReader
@@ -57,6 +58,7 @@ import {
 
 const api = axios.create({
   baseURL: normalizeUrl(import.meta.env.VITE_API_URL || 'http://localhost:5000/api'),
+  timeout: 5000,
 })
 
 const demoCredentials = [
@@ -115,6 +117,26 @@ function App() {
   const navigate = useNavigate()
   const [isPending, startTransition] = useTransition()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+
+  useEffect(() => {
+    syncOfflineSales()
+    const handleOnline = () => {
+      setIsOnline(true)
+      syncOfflineSales()
+      alert("Internet connection restored. Syncing offline data...")
+    }
+    const handleOffline = () => {
+      setIsOnline(false)
+      alert("Internet connection lost. You are now working offline.")
+    }
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
 
   // Map pathname to activeView for legacy component compatibility
   const activeView = location.pathname === '/' ? 'overview' : location.pathname.slice(1).replace('/', '-')
@@ -667,38 +689,54 @@ function App() {
         }
       }
 
-      const response = await api.post(
-        '/sales',
-        {
-          customerName: checkoutForm.customerName,
-          customerId: checkoutForm.customerId,
-          loyaltyCard: checkoutForm.loyaltyCard,
-          paymentMethod: checkoutForm.paymentMethod,
-          discount: Number(checkoutForm.discount || 0),
-          notes: checkoutForm.notes,
-          items: cart.map((item) => ({ productId: item.productId, quantity: item.quantity })),
-          splitPayments: splitPayments.length > 0 ? splitPayments : undefined,
-        },
-        authConfig(session.token),
-      )
-      await refreshCoreData()
-      setCart([])
-      setCheckoutForm({
-        customerName: 'Walk-in customer',
-        customerId: '',
-        loyaltyCard: '',
-        paymentMethod: 'cash',
-        discount: '0',
-        notes: '',
-        splitCash: '',
-        splitCard: '',
-        splitUpi: '',
-        splitCredit: ''
-      })
-      printReceipt(response.data.sale, session.user, 0, company)
-      setNotice({ type: 'success', text: 'Sale completed.' })
-    } catch (error) {
-      handleRequestError(error, 'Checkout failed.')
+      const saleData = {
+        customerName: checkoutForm.customerName,
+        customerId: checkoutForm.customerId,
+        loyaltyCard: checkoutForm.loyaltyCard,
+        paymentMethod: checkoutForm.paymentMethod,
+        discount: Number(checkoutForm.discount || 0),
+        notes: checkoutForm.notes,
+        items: cart.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+        splitPayments: splitPayments.length > 0 ? splitPayments : undefined,
+      };
+
+      const resetCartAndForm = () => {
+        setCart([])
+        setCheckoutForm({
+          customerName: 'Walk-in customer',
+          customerId: '',
+          loyaltyCard: '',
+          paymentMethod: 'cash',
+          discount: '0',
+          notes: '',
+          splitCash: '',
+          splitCard: '',
+          splitUpi: '',
+          splitCredit: ''
+        })
+      };
+
+      if (!navigator.onLine) {
+        await saveSaleOffline(saleData);
+        resetCartAndForm();
+        setNotice({ type: 'success', text: 'You are offline. Sale saved locally and will sync when internet returns.' })
+      } else {
+        try {
+          const response = await api.post('/sales', saleData, authConfig(session.token))
+          await refreshCoreData()
+          resetCartAndForm()
+          printReceipt(response.data.sale, session.user, 0, company)
+          setNotice({ type: 'success', text: 'Sale completed.' })
+        } catch (error) {
+          if (!error.response) { // Network error like connection drop
+            await saveSaleOffline(saleData);
+            resetCartAndForm();
+            setNotice({ type: 'warning', text: 'Network issue detected. Sale saved offline.' })
+          } else {
+            handleRequestError(error, 'Checkout failed.')
+          }
+        }
+      }
     } finally {
       setBusyAction('')
     }
@@ -735,12 +773,12 @@ function App() {
       />
 
       <main className="workspace stack gap-5">
-        <Topbar 
-          activeView={activeView} 
-          session={session} 
-          overview={overview} 
-          theme={theme} 
-          setTheme={setTheme} 
+        <Topbar
+          activeView={activeView}
+          session={session}
+          overview={overview}
+          theme={theme}
+          setTheme={setTheme}
           setIsSidebarOpen={setIsSidebarOpen}
         />
         <NoticeBanner notice={notice} />
