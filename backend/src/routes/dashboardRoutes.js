@@ -20,7 +20,13 @@ const router = express.Router();
 router.get('/overview', requireAuth, async (req, res, next) => {
   try {
     // getOverviewData handles the business logic of aggregating the stats
-    const overview = await getOverviewData(req.user, req.query.branch);
+    const overview = await getOverviewData(
+      req.user, 
+      req.query.branch,
+      req.query.trendRange,
+      req.query.startDate,
+      req.query.endDate
+    );
     res.json(overview);
   } catch (error) {
     // Pass errors to the global error handler

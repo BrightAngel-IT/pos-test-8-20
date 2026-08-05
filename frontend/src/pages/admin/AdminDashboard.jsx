@@ -4,7 +4,7 @@
  * React UI page component representing the AdminDashboard view.
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Warehouse,
@@ -20,16 +20,32 @@ import {
 } from 'lucide-react'
 import { MetricCard } from '../../components/MetricCard'
 import { SectionHeading } from '../../components/SectionHeading'
-import { formatCurrency, formatDate } from '../../utils'
+import { formatCurrency, formatDate, authConfig } from '../../utils'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 
-export function AdminDashboard({ overview, session, startTransition }) {
-  const navigate = useNavigate()
+export function AdminDashboard({ api, overview, session, startTransition }) {
+  const navigate = useNavigate();
   
   const [showAllStock, setShowAllStock] = useState(false)
   const [showAllVelocity, setShowAllVelocity] = useState(false)
   const [showAllInvoices, setShowAllInvoices] = useState(false)
+  const [trendRange, setTrendRange] = useState('monthly');
+  const [customDates, setCustomDates] = useState({ start: '', end: '' });
+  const [trendData, setTrendData] = useState(null);
   const displayLimit = 3;
+
+  useEffect(() => {
+    async function fetchTrend() {
+      try {
+        if (!api) return;
+        const res = await api.get(`/dashboard/overview?trendRange=${trendRange}&startDate=${customDates.start}&endDate=${customDates.end}`, authConfig(session.token));
+        setTrendData(res.data.monthlySales || []);
+      } catch (err) {
+        console.error('Error fetching trend:', err);
+      }
+    }
+    fetchTrend();
+  }, [api, trendRange, customDates.start, customDates.end, session]);
 
   const quickActions = [
     { label: 'New Bill', icon: ShoppingCart, path: '/pos', color: 'var(--accent)' },
@@ -94,7 +110,9 @@ export function AdminDashboard({ overview, session, startTransition }) {
             text="High-priority replenishment items."
           />
           <div className="stack gap-3">
-            {(overview?.lowStockProducts || []).slice(0, displayLimit).map((product) => (
+            {(overview?.lowStockProducts?.length || 0) === 0 ? (
+              <div className="p-4 center muted" style={{ borderRadius: '16px', border: '1px dashed var(--border)' }}>No critical stock alerts.</div>
+            ) : (overview?.lowStockProducts || []).slice(0, displayLimit).map((product) => (
               <div key={product._id} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '16px', border: '1px solid var(--border)' }}>
                 <div className="cluster gap-3">
                   <img src={product.image} alt={product.name} className="thumb" />
@@ -130,7 +148,9 @@ export function AdminDashboard({ overview, session, startTransition }) {
             text="Best selling products this period."
           />
           <div className="stack gap-3">
-            {(overview?.topProducts || []).slice(0, displayLimit).map((product) => (
+            {(overview?.topProducts?.length || 0) === 0 ? (
+              <div className="p-4 center muted" style={{ borderRadius: '16px', border: '1px dashed var(--border)' }}>No top velocity products found.</div>
+            ) : (overview?.topProducts || []).slice(0, displayLimit).map((product) => (
               <div key={product.productId} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '16px', border: '1px solid var(--border)' }}>
                 <div className="cluster gap-3">
                   <img src={product.image} alt={product.name} className="thumb" />
@@ -164,7 +184,9 @@ export function AdminDashboard({ overview, session, startTransition }) {
             text="Recent transaction stream."
           />
           <div className="stack gap-3">
-            {(overview?.recentSales || []).slice(0, displayLimit).map((sale) => (
+            {(overview?.recentSales?.length || 0) === 0 ? (
+              <div className="p-4 center muted" style={{ borderRadius: '16px', border: '1px dashed var(--border)' }}>No recent invoices found.</div>
+            ) : (overview?.recentSales || []).slice(0, displayLimit).map((sale) => (
               <div key={sale._id} className="list-row p-3 panel-strong glow-on-hover" style={{ borderRadius: '16px', border: '1px solid var(--border)' }}>
                 <div className="stack gap-1">
                   <div className="cluster gap-2">
@@ -194,10 +216,28 @@ export function AdminDashboard({ overview, session, startTransition }) {
       </section>
 
       <section className="panel p-6 stack gap-5 glass-panel mt-6">
-        <SectionHeading title="Monthly Sales Trend" text="Revenue progression for the current year." />
+        <div className="between align-center wrap-row gap-3">
+          <SectionHeading title="Sales Trend" text="Revenue progression across selected time range." />
+          <div className="cluster gap-2">
+            {trendRange === 'custom' && (
+              <div className="cluster gap-2">
+                <input type="date" className="input small" value={customDates.start} onChange={e => setCustomDates(prev => ({...prev, start: e.target.value}))} />
+                <span className="muted">-</span>
+                <input type="date" className="input small" value={customDates.end} onChange={e => setCustomDates(prev => ({...prev, end: e.target.value}))} />
+              </div>
+            )}
+            <select className="input small" value={trendRange} onChange={(e) => setTrendRange(e.target.value)} style={{ width: 'auto' }}>
+              <option value="daily">Daily (Last 7 Days)</option>
+              <option value="weekly">Weekly (Last 8 Weeks)</option>
+              <option value="monthly">Monthly (Last 12 Months)</option>
+              <option value="annual">Annual (Last 5 Years)</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
+        </div>
         <div style={{ width: '100%', height: '300px' }}>
           <ResponsiveContainer>
-            <BarChart data={overview?.monthlySales || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <BarChart data={trendData || overview?.monthlySales || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
               <XAxis dataKey="month" stroke="var(--text-soft)" fontSize={12} tickLine={false} axisLine={false} />
               <YAxis stroke="var(--text-soft)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />

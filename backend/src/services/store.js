@@ -1356,18 +1356,23 @@ async function getSalesReport(range = 'weekly', branchFilter = null, customStart
   };
 }
 
-async function getOverviewData(user, branchFilter = null) {
+async function getOverviewData(user, branchFilter = null, trendRange = 'monthly', customStartDate = null, customEndDate = null) {
   const activeBranch = (user && user.role !== 'super_admin') ? user.branch : branchFilter;
 
-  let [products, sales, users] = await Promise.all([
+  let [products, sales, users, allPurchases, allReturns, allCustomerInvoices, allSupplierInvoices] = await Promise.all([
     getProducts({ branch: activeBranch }),
     getAllSales(),
     getAllUsersForLookup(),
+    isDatabaseReady() ? Purchase.find().sort({ createdAt: -1 }).populate('supplier').lean() : clonePlain(memoryStore.purchases || []),
+    isDatabaseReady() ? Return.find().sort({ createdAt: -1 }).lean() : clonePlain(memoryStore.returns || []),
+    isDatabaseReady() ? CustomerInvoice.find().sort({ updatedAt: -1 }).populate('customerId').lean() : [],
+    isDatabaseReady() ? SupplierInvoice.find().sort({ updatedAt: -1 }).populate('supplierId').lean() : []
   ]);
 
   if (activeBranch) {
     sales = sales.filter((sale) => sale.branch === activeBranch);
     users = users.filter((u) => u.branch === activeBranch);
+    allReturns = allReturns.filter(r => r.branch === activeBranch);
   } else if (user && user.role === 'cashier') {
     sales = sales.filter((sale) =>
       String(sale.cashier?.userId || sale.cashierId) === String(user._id)
@@ -1428,44 +1433,160 @@ async function getOverviewData(user, branchFilter = null) {
     });
   });
 
-  const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const currentYear = now.getFullYear();
-  let monthlySales = [];
+  // Dynamic Trend Calculation
+  let rangeStart, rangeEnd;
+  const validRange = ['daily', 'weekly', 'monthly', 'annual', 'custom'].includes(trendRange) ? trendRange : 'monthly';
+  if (validRange === 'custom') {
+    rangeStart = customStartDate ? new Date(customStartDate) : new Date(0);
+    rangeEnd = customEndDate ? new Date(new Date(customEndDate).setHours(23, 59, 59, 999)) : new Date();
+  } else {
+    rangeStart = getRangeStart(validRange);
+    rangeEnd = new Date();
+  }
+
+  let filteredSalesForTrend = sales.filter((sale) => {
+    const d = new Date(sale.createdAt);
+    return d >= rangeStart && d <= rangeEnd;
+  });
+
+  let buckets = [];
+  if (validRange === 'daily') {
+    for (let index = 6; index >= 0; index -= 1) {
+      const date = new Date(now);
+      date.setDate(now.getDate() - index);
+      date.setHours(0, 0, 0, 0);
+      buckets.push({
+        key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+        label: date.toLocaleDateString('en-US', { weekday: 'short' })
+      });
+    }
+  } else if (validRange === 'weekly') {
+    for (let index = 7; index >= 0; index -= 1) {
+      const date = startOfWeek(now);
+      date.setDate(date.getDate() - index * 7);
+      buckets.push({
+        key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+        label: `W${date.toLocaleDateString('en-US', { month: 'short' })} ${date.getDate()}`
+      });
+    }
+  } else if (validRange === 'monthly') {
+    for (let index = 11; index >= 0; index -= 1) {
+      const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
+      buckets.push({
+        key: `${date.getFullYear()}-${date.getMonth() + 1}`,
+        label: date.toLocaleDateString('en-US', { month: 'short' })
+      });
+    }
+  } else if (validRange === 'annual') {
+    for (let index = 4; index >= 0; index -= 1) {
+      const year = now.getFullYear() - index;
+      buckets.push({
+        key: String(year),
+        label: String(year)
+      });
+    }
+  } else { // Custom
+    const diffTime = Math.abs(rangeEnd - rangeStart);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    let step = 'daily';
+    if (diffDays > 60 && diffDays <= 180) step = 'weekly';
+    else if (diffDays > 180 && diffDays <= 730) step = 'monthly';
+    else if (diffDays > 730) step = 'annual';
+
+    let current = new Date(rangeStart);
+    if (step === 'daily') {
+      while (current <= rangeEnd) {
+        const key = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+        buckets.push({ key, label: `${current.toLocaleDateString('en-US', { month: 'short' })} ${current.getDate()}` });
+        current.setDate(current.getDate() + 1);
+      }
+    } else if (step === 'weekly') {
+      current = startOfWeek(current);
+      while (current <= rangeEnd) {
+        const key = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+        buckets.push({ key, label: `W${current.toLocaleDateString('en-US', { month: 'short' })} ${current.getDate()}` });
+        current.setDate(current.getDate() + 7);
+      }
+    } else if (step === 'monthly') {
+      current.setDate(1);
+      while (current <= rangeEnd) {
+        const key = `${current.getFullYear()}-${current.getMonth() + 1}`;
+        buckets.push({ key, label: `${current.toLocaleDateString('en-US', { month: 'short' })} ${current.getFullYear()}` });
+        current.setMonth(current.getMonth() + 1);
+      }
+    } else {
+      while (current <= rangeEnd) {
+        const key = String(current.getFullYear());
+        buckets.push({ key, label: key });
+        current.setFullYear(current.getFullYear() + 1);
+      }
+    }
+  }
+
   let branchMonthlySales = [];
   let allBranches = [];
-
+  
   if (activeBranch) {
-    monthlySales = monthLabels.map((month, index) => {
-      const salesForMonth = sales.filter(s => {
+    branchMonthlySales = buckets.map((bucket) => {
+      const bSales = filteredSalesForTrend.filter(s => {
         const d = new Date(s.createdAt);
-        return d.getFullYear() === currentYear && d.getMonth() === index;
+        if (validRange === 'daily' || buckets.length > 12) {
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === bucket.key;
+        } else if (validRange === 'weekly') {
+            const wDate = startOfWeek(d);
+            return `${wDate.getFullYear()}-${String(wDate.getMonth() + 1).padStart(2, '0')}-${String(wDate.getDate()).padStart(2, '0')}` === bucket.key;
+        } else if (validRange === 'monthly') {
+            return `${d.getFullYear()}-${d.getMonth() + 1}` === bucket.key;
+        } else {
+            return String(d.getFullYear()) === bucket.key;
+        }
       });
       return {
-        month,
-        revenue: formatCurrencyAmount(salesForMonth.reduce((sum, s) => sum + Number(s.total), 0))
+        month: bucket.label,
+        revenue: formatCurrencyAmount(bSales.reduce((sum, s) => sum + Number(s.total), 0))
       };
     });
   } else {
     allBranches = [...new Set(sales.map(s => s.branch || 'Unknown'))];
-    branchMonthlySales = monthLabels.map((month, index) => {
-      const salesForMonth = sales.filter(s => {
-        const d = new Date(s.createdAt);
-        return d.getFullYear() === currentYear && d.getMonth() === index;
-      });
-
-      const monthData = { month };
+    branchMonthlySales = buckets.map((bucket) => {
+      const monthData = { month: bucket.label };
       allBranches.forEach(branch => {
-        const branchSales = salesForMonth.filter(s => (s.branch || 'Unknown') === branch);
+        const branchSales = filteredSalesForTrend.filter(s => {
+            if ((s.branch || 'Unknown') !== branch) return false;
+            const d = new Date(s.createdAt);
+            if (validRange === 'daily' || buckets.length > 12 && buckets[0].key.length > 7) {
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === bucket.key;
+            } else if (validRange === 'weekly') {
+                const wDate = startOfWeek(d);
+                return `${wDate.getFullYear()}-${String(wDate.getMonth() + 1).padStart(2, '0')}-${String(wDate.getDate()).padStart(2, '0')}` === bucket.key;
+            } else if (validRange === 'monthly' || buckets[0].key.length <= 7) {
+                if (bucket.key.includes('-')) return `${d.getFullYear()}-${d.getMonth() + 1}` === bucket.key;
+                return String(d.getFullYear()) === bucket.key;
+            } else {
+                return String(d.getFullYear()) === bucket.key;
+            }
+        });
         monthData[branch] = formatCurrencyAmount(branchSales.reduce((sum, s) => sum + Number(s.total), 0));
       });
       return monthData;
     });
   }
 
-  const recentSales = sales.slice(0, 6).map((sale) => ({
+  const recentSales = sales.slice(0, 50).map((sale) => ({
     ...sale,
     cashierName: sale.cashier?.name || 'Unknown cashier',
   }));
+  
+  const recentPurchases = allPurchases.slice(0, 50).map(p => ({
+    ...p,
+    supplierName: p.supplier?.name || p.supplierName || 'Unknown',
+    _id: String(p._id)
+  }));
+  
+  const recentCustomerReturns = allReturns.filter(r => r.type === 'customer').slice(0, 50).map(r => ({...r, _id: String(r._id)}));
+  const recentSupplierReturns = allReturns.filter(r => r.type === 'supplier').slice(0, 50).map(r => ({...r, _id: String(r._id)}));
+  const recentCustomerSettlements = allCustomerInvoices.filter(i => i.status === 'PAID' || i.status === 'PARTIAL').slice(0, 50).map(i => ({...i, _id: String(i._id)}));
+  const recentSupplierSettlements = allSupplierInvoices.filter(i => i.status === 'PAID' || i.status === 'PARTIAL').slice(0, 50).map(i => ({...i, _id: String(i._id)}));
 
   return {
     user: sanitizeUser(user),
@@ -1487,7 +1608,7 @@ async function getOverviewData(user, branchFilter = null) {
       ),
       activeUsers: users.length,
     },
-    monthlySales,
+    monthlySales: branchMonthlySales,
     branchMonthlySales,
     allBranches,
     lowStockProducts,
@@ -1496,13 +1617,17 @@ async function getOverviewData(user, branchFilter = null) {
       rackLabel: getRackLabel(product.rack),
     })),
     recentSales,
+    recentPurchases,
+    recentCustomerReturns,
+    recentSupplierReturns,
+    recentCustomerSettlements,
+    recentSupplierSettlements,
     topProducts: [...productSalesMap.values()]
       .sort((left, right) => right.quantity - left.quantity)
       .slice(0, 5),
     rackSummary: [...rackSummaryMap.values()],
   };
 }
-
 module.exports = {
   createSale,
   deleteProduct,

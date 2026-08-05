@@ -842,6 +842,7 @@ function App() {
                 <Navigate to="/super-admin" replace />
               ) : session.user.role === 'admin' ? (
                 <AdminDashboard
+                  api={api}
                   overview={overview}
                   session={session}
                   startTransition={startTransition}
