@@ -6,7 +6,8 @@ import {
 } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { saveSaleOffline, syncOfflineSales } from './utils/offlineSync';
+import { saveSaleOffline, syncOfflineSales, syncOfflineReturns, syncOfflineSettlements, cacheLoginCredentials, attemptOfflineLogin } from './utils/offlineSync';
+import localforage from 'localforage';
 import _BarcodeReader from 'react-barcode-reader'
 
 const BarcodeReader = _BarcodeReader.default || _BarcodeReader
@@ -121,9 +122,13 @@ function App() {
 
   useEffect(() => {
     syncOfflineSales()
+    syncOfflineReturns()
+    syncOfflineSettlements()
     const handleOnline = async () => {
       setIsOnline(true)
       await syncOfflineSales()
+      await syncOfflineReturns()
+      await syncOfflineSettlements()
       alert("Internet connection restored. Syncing offline data...")
       if (session?.token) {
         refreshCoreData()
@@ -166,6 +171,7 @@ function App() {
     loyaltyCard: '',
     paymentMethod: 'cash',
     discount: '0',
+    returnDays: 0,
     notes: '',
   })
   const [productForm, setProductForm] = useState(emptyProductForm)
@@ -261,6 +267,7 @@ function App() {
           api.get('/products', authConfig(session.token)),
           api.get('/sales', authConfig(session.token)),
           api.get('/customers', authConfig(session.token)),
+          api.get('/supplier-invoices', authConfig(session.token)).catch(() => ({ data: [] })),
         ]
 
         // Only add report fetch if admin
@@ -278,12 +285,36 @@ function App() {
         setSales(results[2].data.sales || [])
         setCustomers(results[3].data)
 
-        if (isAdmin && results[4]) {
-          setReport(results[4].data)
+        // Cache the fetched data for offline fallback
+        try {
+          await localforage.setItem('cachedOverview', results[0].data)
+          await localforage.setItem('cachedProducts', results[1].data.products || [])
+          await localforage.setItem('cachedSales', results[2].data.sales || [])
+          await localforage.setItem('cachedCustomers', results[3].data)
+          await localforage.setItem('cachedSupplierInvoices', results[4].data || [])
+        } catch (e) {
+          console.error("Error caching data offline", e)
+        }
+
+        if (isAdmin && results[5]) {
+          setReport(results[5].data)
         }
       } catch (error) {
         if (isCancelled) return
-        setNotice({ type: 'error', text: 'Cloud sync failed. Check connectivity.' })
+        setNotice({ type: 'error', text: 'Cloud sync failed. Falling back to offline cache.' })
+        try {
+          const cachedOverview = await localforage.getItem('cachedOverview');
+          const cachedProducts = await localforage.getItem('cachedProducts');
+          const cachedSales = await localforage.getItem('cachedSales');
+          const cachedCustomers = await localforage.getItem('cachedCustomers');
+
+          if (cachedOverview) setOverview(cachedOverview);
+          if (cachedProducts) setProducts(cachedProducts);
+          if (cachedSales) setSales(cachedSales);
+          if (cachedCustomers) setCustomers(cachedCustomers);
+        } catch (e) {
+          console.error("Error loading offline cache", e);
+        }
       } finally {
         if (!isCancelled) setPageLoading(false)
       }
@@ -406,11 +437,53 @@ function App() {
   async function handleLogin(event) {
     event.preventDefault()
     setBusyAction('login')
+
+    const attemptOffline = async () => {
+      const offlineSession = await attemptOfflineLogin(authForm.username, authForm.password)
+      if (offlineSession) {
+        setSession(offlineSession)
+        navigate('/')
+        setNotice({ type: 'warning', text: `Offline mode: Welcome back, ${offlineSession.user.name}. Data will sync when online.` })
+
+        // Try to load cached core data if offline
+        try {
+          const cachedOverview = await localforage.getItem('cachedOverview');
+          const cachedProducts = await localforage.getItem('cachedProducts');
+          const cachedCustomers = await localforage.getItem('cachedCustomers');
+          if (cachedOverview) setOverview(cachedOverview);
+          if (cachedProducts) setProducts(cachedProducts);
+          if (cachedCustomers) setCustomers(cachedCustomers);
+        } catch (e) { }
+      } else {
+        setNotice({ type: 'error', text: 'Incorrect credentials or user not cached for offline login.' })
+      }
+    };
+
     try {
-      const response = await api.post('/auth/login', authForm)
-      setSession(response.data)
-      navigate('/')
-      setNotice({ type: 'success', text: `Welcome back, ${response.data.user.name}.` })
+      if (!navigator.onLine) {
+        await attemptOffline();
+      } else {
+        try {
+          const response = await api.post('/auth/login', authForm)
+          if (response && response.data) {
+            setSession(response.data)
+            // Cache credentials for offline use
+            await cacheLoginCredentials(authForm.username, authForm.password, response.data)
+            navigate('/')
+            setNotice({ type: 'success', text: `Welcome back, ${response.data.user.name}.` })
+          } else {
+            throw new Error("Invalid response data");
+          }
+        } catch (apiError) {
+          // If it's a network error (no response from server), try offline login
+          if (!apiError.response) {
+            console.log("Network error during login, attempting offline fallback...");
+            await attemptOffline();
+          } else {
+            throw apiError; // Re-throw to be caught by the outer catch
+          }
+        }
+      }
     } catch (error) {
       setNotice({ type: 'error', text: readErrorMessage(error, 'Unable to sign in.') })
     } finally {
@@ -684,9 +757,10 @@ function App() {
       cashierName: session?.user?.name || 'Cashier',
       branch: session?.user?.branch || 'Branch',
       items: saleData.items,
+      returnDays: saleData.returnDays,
       isOffline: true
     };
-    
+
     setSales(prev => [localSaleObj, ...prev]);
     setOverview(prev => {
       if (!prev) return prev;
@@ -732,6 +806,7 @@ function App() {
         discount: Number(checkoutForm.discount || 0),
         notes: checkoutForm.notes,
         items: cart.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+        returnDays: Number(checkoutForm.returnDays || 0),
         splitPayments: splitPayments.length > 0 ? splitPayments : undefined,
       };
 
@@ -743,6 +818,7 @@ function App() {
           loyaltyCard: '',
           paymentMethod: 'cash',
           discount: '0',
+          returnDays: 0,
           notes: '',
           splitCash: '',
           splitCard: '',

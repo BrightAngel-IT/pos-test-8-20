@@ -98,7 +98,7 @@ export default function AccountStatement({ api, session, onNotice, company, cust
       setReturns(returnsRes.data || [])
 
       const allSales = salesRes.data.sales || [];
-      
+
       // Fetch offline sales for this customer if offline or to show pending ones
       let offlineSales = [];
       if (type === 'customer') {
@@ -110,20 +110,20 @@ export default function AccountStatement({ api, session, onNotice, company, cust
       const offlineInvoices = offlineSales.map(sale => {
         let creditAmount = 0;
         if (sale.paymentMethod === 'credit') {
-           creditAmount = sale.total || sale.items?.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0) || 0;
+          creditAmount = sale.total || sale.items?.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0) || 0;
         } else if (sale.paymentMethod === 'split' && sale.splitPayments) {
-           const creditPart = sale.splitPayments.find(p => p.method === 'credit');
-           if (creditPart) creditAmount = Number(creditPart.amount || 0);
+          const creditPart = sale.splitPayments.find(p => p.method === 'credit');
+          if (creditPart) creditAmount = Number(creditPart.amount || 0);
         }
         if (creditAmount > 0) {
-            return {
-                _id: sale.localId,
-                date: new Date(sale.localId).toISOString(),
-                invoiceNo: `OFFLINE-INV-${sale.localId}`,
-                totalAmount: creditAmount,
-                status: 'UNPAID',
-                isOffline: true
-            };
+          return {
+            _id: sale.localId,
+            date: new Date(sale.localId).toISOString(),
+            invoiceNo: `OFFLINE-INV-${sale.localId}`,
+            totalAmount: creditAmount,
+            status: 'UNPAID',
+            isOffline: true
+          };
         }
         return null;
       }).filter(Boolean);
@@ -135,23 +135,23 @@ export default function AccountStatement({ api, session, onNotice, company, cust
       const immediate = [...allSales, ...offlineSales].map(sale => {
         let creditAmount = 0;
         if (sale.paymentMethod === 'credit') {
-           creditAmount = sale.total || sale.items?.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0) || 0;
+          creditAmount = sale.total || sale.items?.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0) || 0;
         } else if (sale.paymentMethod === 'split' && sale.splitPayments) {
-           const creditPart = sale.splitPayments.find(p => p.method === 'credit');
-           if (creditPart) creditAmount = Number(creditPart.amount || 0);
+          const creditPart = sale.splitPayments.find(p => p.method === 'credit');
+          if (creditPart) creditAmount = Number(creditPart.amount || 0);
         }
         const total = sale.total || (sale.items?.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0) || 0) - (sale.discount || 0);
         const immediateAmount = total - creditAmount;
         if (immediateAmount > 0) {
-           return {
-              _id: sale._id || sale.localId,
-              date: sale.createdAt || new Date(sale.localId).toISOString(),
-              reference: sale.invoiceNumber || `OFFLINE-${sale.localId}`,
-              method: sale.paymentMethod === 'split' ? 'SPLIT (CASH/CARD)' : sale.paymentMethod.toUpperCase(),
-              amount: immediateAmount,
-              isOffline: sale.isOffline,
-              raw: sale
-           };
+          return {
+            _id: sale._id || sale.localId,
+            date: sale.createdAt || new Date(sale.localId).toISOString(),
+            reference: sale.invoiceNumber || `OFFLINE-${sale.localId}`,
+            method: sale.paymentMethod === 'split' ? 'SPLIT (CASH/CARD)' : sale.paymentMethod.toUpperCase(),
+            amount: immediateAmount,
+            isOffline: sale.isOffline,
+            raw: sale
+          };
         }
         return null;
       }).filter(Boolean);
@@ -201,7 +201,7 @@ export default function AccountStatement({ api, session, onNotice, company, cust
             raw: ret
           }
         ];
-        
+
         if (ret.paidAmount > 0) {
           rows.push({
             _id: ret._id + '-dr',
@@ -215,7 +215,7 @@ export default function AccountStatement({ api, session, onNotice, company, cust
             raw: ret
           });
         }
-        
+
         return rows;
       }),
       ...immediatePayments.flatMap(p => [
@@ -284,17 +284,17 @@ export default function AccountStatement({ api, session, onNotice, company, cust
     const totalInvoiced = invoices.reduce((sum, i) => sum + i.totalAmount, 0)
     const totalPaid = payments.reduce((sum, p) => sum + p.totalAmount, 0)
     const totalReturned = returns.filter(ret => ret.refundMethod === 'credit-note').reduce((sum, r) => sum + r.totalAmount, 0)
-    
+
     const totalImmediate = immediatePayments.reduce((sum, p) => sum + p.amount, 0)
     const totalCashReturned = returns.reduce((sum, r) => sum + (r.paidAmount || 0), 0)
-    
+
     const outstanding = totalInvoiced - totalPaid - totalReturned
-    return { 
-      totalInvoiced: totalInvoiced + totalImmediate, 
-      totalPaid: totalPaid + totalImmediate, 
-      totalReturned, 
-      totalCashReturned, 
-      outstanding 
+    return {
+      totalInvoiced: totalInvoiced + totalImmediate,
+      totalPaid: totalPaid + totalImmediate,
+      totalReturned,
+      totalCashReturned,
+      outstanding
     }
   }, [invoices, payments, returns, immediatePayments])
 

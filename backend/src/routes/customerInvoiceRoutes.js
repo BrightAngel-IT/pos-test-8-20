@@ -11,12 +11,12 @@ const CustomerInvoice = require('../models/CustomerInvoice');
 const { requireAuth } = require('../middleware/auth');
 
 router.get('/', requireAuth, async (req, res) => {
-  const invoices = await CustomerInvoice.find().populate('customerId').sort({ date: -1 });
+  const invoices = await CustomerInvoice.find().populate('customerId').sort({ date: -1 }).lean();
   res.json(invoices);
 });
 
 router.get('/customer/:customerId', requireAuth, async (req, res) => {
-  const invoices = await CustomerInvoice.find({ customerId: req.params.customerId }).sort({ date: -1 });
+  const invoices = await CustomerInvoice.find({ customerId: req.params.customerId }).sort({ date: -1 }).lean();
   res.json(invoices);
 });
 

@@ -21,7 +21,8 @@ import {
   Users
 } from 'lucide-react'
 import { SectionHeading } from '../../components/SectionHeading'
-import { formatCurrency, authConfig } from '../../utils'
+import { readErrorMessage, formatCurrency, authConfig } from '../../utils'
+import { saveSettlementOffline } from '../../utils/offlineSync'
 
 export function PaymentAllocation({ api, session, onNotice }) {
   const [settlementMode] = useState('supplier') // Forced to supplier for super_admin
@@ -114,29 +115,36 @@ export function PaymentAllocation({ api, session, onNotice }) {
     }
 
     setSubmitting(true)
-    try {
-      const endpoint = settlementMode === 'customer' ? '/payments' : '/supplier-payments'
+    setSubmitting(true)
+    const endpoint = settlementMode === 'customer' ? '/payments' : '/supplier-payments'
+    const payload = {
+      [settlementMode === 'customer' ? 'customerId' : 'supplierId']: selectedEntityId,
+      paymentDate: paymentForm.paymentDate,
+      totalAmount: parseFloat(paymentForm.totalAmount),
+      paymentMethod: paymentForm.paymentMethod,
+      chequeNumber: paymentForm.chequeNumber,
+      allocations: Object.entries(allocations)
+        .filter(([_, amount]) => parseFloat(amount) > 0)
+        .map(([invoiceId, amount]) => ({
+          invoiceId,
+          allocatedAmount: parseFloat(amount)
+        }))
+    }
 
-      const payload = {
-        [settlementMode === 'customer' ? 'customerId' : 'supplierId']: selectedEntityId,
-        paymentDate: paymentForm.paymentDate,
-        totalAmount: parseFloat(paymentForm.totalAmount),
-        paymentMethod: paymentForm.paymentMethod,
-        chequeNumber: paymentForm.chequeNumber,
-        allocations: Object.entries(allocations)
-          .filter(([_, amount]) => parseFloat(amount) > 0)
-          .map(([invoiceId, amount]) => ({
-            invoiceId,
-            allocatedAmount: parseFloat(amount)
-          }))
-      }
-
-      await api.post(endpoint, payload, authConfig(session.token))
-      onNotice({ type: 'success', text: `${settlementMode === 'customer' ? 'Collection' : 'Settlement'} processed successfully` })
-
-      // Refresh invoices for the same entity instead of resetting selection
+    if (!navigator.onLine) {
+      await saveSettlementOffline(payload, endpoint)
+      onNotice({ type: 'warning', text: `You are offline. ${settlementMode === 'customer' ? 'Collection' : 'Settlement'} saved locally and will sync when internet returns.` })
+      
       if (selectedEntityId) {
-        fetchInvoices(selectedEntityId)
+        // Optimistically update invoices
+        setInvoices(prev => prev.map(inv => {
+          const allocation = allocations[inv._id];
+          if (allocation) {
+            const newBalance = Math.max(0, (inv.balanceAmount ?? inv.totalAmount) - parseFloat(allocation));
+            return { ...inv, balanceAmount: newBalance };
+          }
+          return inv;
+        }).filter(inv => (inv.balanceAmount ?? inv.totalAmount) > 0));
       }
 
       setPaymentForm({
@@ -146,6 +154,54 @@ export function PaymentAllocation({ api, session, onNotice }) {
         paymentDate: new Date().toISOString().split('T')[0],
       })
       setAllocations({})
+      setSubmitting(false)
+      return;
+    }
+
+    const attemptOffline = async () => {
+      const saved = await saveSettlementOffline(payload, endpoint)
+      if (saved) {
+        onNotice({ type: 'warning', text: 'Offline mode: Settlement saved locally and will sync when online.' })
+        setPaymentForm({
+          totalAmount: '',
+          paymentMethod: 'CASH',
+          chequeNumber: '',
+          paymentDate: new Date().toISOString().split('T')[0],
+        })
+        setAllocations({})
+      } else {
+        onNotice({ type: 'error', text: 'Failed to save settlement offline.' })
+      }
+    }
+
+    try {
+      if (!navigator.onLine) {
+        await attemptOffline()
+      } else {
+        try {
+          await api.post(endpoint, payload, authConfig(session.token))
+          onNotice({ type: 'success', text: `${settlementMode === 'customer' ? 'Collection' : 'Settlement'} processed successfully` })
+
+          // Refresh invoices for the same entity instead of resetting selection
+          if (selectedEntityId) {
+            fetchInvoices(selectedEntityId)
+          }
+
+          setPaymentForm({
+            totalAmount: '',
+            paymentMethod: 'CASH',
+            chequeNumber: '',
+            paymentDate: new Date().toISOString().split('T')[0],
+          })
+          setAllocations({})
+        } catch (err) {
+          if (!err.response) {
+            await attemptOffline()
+          } else {
+            throw err
+          }
+        }
+      }
     } catch (err) {
       onNotice({ type: 'error', text: err.response?.data?.message || 'Transaction failed' })
     } finally {

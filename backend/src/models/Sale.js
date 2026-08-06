@@ -55,6 +55,7 @@ const saleSchema = new mongoose.Schema(
     },
     customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
     branch: { type: String, default: 'Main Branch' },
+    returnDays: { type: Number, default: 0 },
     notes: { type: String, default: '' },
   },
   {

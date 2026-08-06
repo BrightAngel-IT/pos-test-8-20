@@ -16,6 +16,7 @@ const purchaseSchema = new mongoose.Schema({
   }],
   date: { type: Date, default: Date.now },
   branch: { type: String, default: 'Main Branch' },
+  returnDays: { type: Number, default: 0 },
   total: Number
 });
 

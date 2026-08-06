@@ -33,7 +33,7 @@ function createApp() {
 
   // Define allowed origins for CORS. Supports regex for localhost and vercel apps.
   let allowedOrigins = [
-    /http:\/\/localhost:\d+/,
+    /http:\/\/(localhost|192\.168\.\d+\.\d+):\d+/,
     /https?:\/\/.*\.vercel\.app$/
   ];
   // Append any specific origins provided via environment variables

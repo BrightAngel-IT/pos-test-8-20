@@ -802,7 +802,7 @@ async function createSale(payload) {
     splitPayments: payload.splitPayments || undefined,
     discount,
     tax,
-    subtotal,
+      subtotal,
     total,
     customerId: payload.customerId || undefined, // Optional customer link
     items: saleItems,
@@ -813,6 +813,7 @@ async function createSale(payload) {
       username: payload.cashier.username,
     },
     notes: String(payload.notes || '').trim(),
+    returnDays: Number(payload.returnDays || 0),
   };
 
   if (isDatabaseReady()) {
@@ -1930,6 +1931,7 @@ async function createPurchase(payload) {
     total: Number(total),
     date: date || new Date(),
     branch: branchName,
+    returnDays: Number(payload.returnDays || 0),
   };
 
   if (isDatabaseReady()) {
@@ -1956,7 +1958,8 @@ async function createPurchase(payload) {
       totalAmount: total,
       balanceAmount: total,
       status: 'UNPAID',
-      branch: branchName
+      branch: branchName,
+      returnDays: Number(payload.returnDays || 0)
     });
 
     return purchase.toObject();

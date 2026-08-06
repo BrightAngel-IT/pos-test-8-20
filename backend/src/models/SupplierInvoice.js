@@ -18,6 +18,7 @@ const supplierInvoiceSchema = new mongoose.Schema(
       enum: ['PAID', 'PARTIAL', 'UNPAID'],
       default: 'UNPAID',
     },
+    returnDays: { type: Number, default: 0 },
     branch: { type: String, default: 'Main Branch' },
   },
   {

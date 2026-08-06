@@ -21,7 +21,9 @@ import {
   Check,
   DollarSign
 } from 'lucide-react'
-import { authConfig, formatCurrency, formatDate } from '../../utils'
+import { readErrorMessage, formatCurrency, authConfig, formatDate } from '../../utils'
+import { saveReturnOffline } from '../../utils/offlineSync'
+import localforage from 'localforage'
 import { SectionHeading } from '../../components/SectionHeading'
 import { Pagination } from '../../components/Pagination'
 import _BarcodeReader from 'react-barcode-reader'
@@ -95,16 +97,38 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
   const [lookupEndDate, setLookupEndDate] = useState('')
   const [lookupEntityName, setLookupEntityName] = useState('')
 
+  const isReturnable = (invoice) => {
+    if (!invoice) return false;
+    if (invoice.returnDays === undefined) return true; // Legacy invoices are always returnable
+    const returnDays = invoice.returnDays || 0;
+    if (returnDays <= 0) return false;
+    const invDate = new Date(invoice.createdAt || invoice.date);
+    const diffTime = Math.abs(new Date() - invDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= returnDays;
+  };
+
   useEffect(() => {
     if (!showForm) return;
     async function loadInvoices() {
       try {
+        if (!navigator.onLine) {
+          if (newReturn.type === 'customer') {
+            const cachedSales = await localforage.getItem('cachedSales') || []
+            setAvailableInvoices(cachedSales.filter(isReturnable))
+          } else {
+            const cachedInvoices = await localforage.getItem('cachedSupplierInvoices') || []
+            setAvailableInvoices(cachedInvoices.filter(isReturnable))
+          }
+          return
+        }
+
         if (newReturn.type === 'customer') {
           const response = await api.get('/sales', authConfig(session.token))
-          setAvailableInvoices(response.data.sales || [])
+          setAvailableInvoices((response.data.sales || []).filter(isReturnable))
         } else {
           const response = await api.get('/supplier-invoices', authConfig(session.token))
-          setAvailableInvoices(response.data || [])
+          setAvailableInvoices((response.data || []).filter(isReturnable))
         }
       } catch (error) {
         console.error('Failed to load suggestions', error)
@@ -179,23 +203,35 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
     setFoundInvoice(null)
     try {
       if (newReturn.type === 'customer') {
-        // Searching for original sale/invoice
-        const response = await api.get(`/sales?query=${ref}`, authConfig(session.token))
-        const sale = response.data.sales.find(s => s.invoiceNumber === ref)
-
+        let salesData = []
+        if (!navigator.onLine) {
+          salesData = await localforage.getItem('cachedSales') || []
+        } else {
+          const response = await api.get('/sales', authConfig(session.token))
+          salesData = response.data.sales || []
+        }
+        const sale = salesData.find(s => s.invoiceNumber === ref || s.receiptNumber === ref)
         if (sale) {
+          if (!isReturnable(sale)) {
+            onNotice({ type: 'warning', text: 'Return period for this invoice has expired or is non-returnable.' })
+            return;
+          }
           setFoundInvoice(sale)
           setNewReturn(prev => ({
             ...prev,
-            entityId: sale.customerId || '',
-            entityName: sale.customerName || '',
+            entityId: sale.customer?._id || '',
+            entityName: sale.customer?.name || 'Walk-in Customer',
             referenceNo: ref,
             branch: sale.branch,
             items: sale.items.map(item => {
-              const returnedQty = returnedQuantities[item.productId] || 0;
+              const prodId = item.product?._id;
+              const returnedQty = returnedQuantities[prodId] || 0;
               const maxQty = Math.max(0, item.quantity - returnedQty);
               return {
-                ...item,
+                productId: prodId,
+                name: item.product?.name,
+                sku: item.product?.sku,
+                barcode: item.product?.barcode,
                 quantity: 0,
                 maxQuantity: maxQty,
                 unitPrice: item.price
@@ -207,11 +243,33 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
         }
       } else {
         // supplier return
-        const response = await api.get('/supplier-invoices', authConfig(session.token))
-        const sInvoice = response.data.find(inv => inv.invoiceNo === ref)
+        let sInvoices = []
+        let purchases = []
+        if (!navigator.onLine) {
+          sInvoices = await localforage.getItem('cachedSupplierInvoices') || []
+        } else {
+          const response = await api.get('/supplier-invoices', authConfig(session.token))
+          sInvoices = response.data || []
+        }
+        
+        const sInvoice = sInvoices.find(inv => inv.invoiceNo === ref)
         if (sInvoice) {
-          const purchasesRes = await api.get('/purchases', authConfig(session.token))
-          const purchase = purchasesRes.data.find(p => p.supplier?._id === sInvoice.supplierId?._id && Math.abs(p.total - sInvoice.totalAmount) < 0.01)
+          if (!isReturnable(sInvoice)) {
+            onNotice({ type: 'warning', text: 'Return period for this invoice has expired or is non-returnable.' })
+            return;
+          }
+          let purchase = null
+          if (!navigator.onLine) {
+            purchase = {
+              supplier: sInvoice.supplierId,
+              branch: sInvoice.branch || '',
+              products: sInvoice.items || []
+            }
+          } else {
+            const purchasesRes = await api.get('/purchases', authConfig(session.token))
+            purchase = purchasesRes.data.find(p => p.supplier?._id === sInvoice.supplierId?._id && Math.abs(p.total - sInvoice.totalAmount) < 0.01)
+          }
+          
           if (purchase) {
             setFoundInvoice(purchase)
             setNewReturn(prev => ({
@@ -261,8 +319,28 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
     }
 
     setIsSubmitting(true)
+    const returnPayload = { ...newReturn, items: itemsToReturn };
+    if (!navigator.onLine) {
+      await saveReturnOffline(returnPayload);
+      const offlineReturnObj = {
+        _id: `OFFLINE-${Date.now()}`,
+        returnNo: `RET-OFFLINE-${Date.now()}`,
+        ...returnPayload,
+        createdAt: new Date().toISOString(),
+        totalAmount: itemsToReturn.reduce((sum, item) => sum + (item.quantity * (item.unitPrice || 0)), 0),
+        status: 'pending',
+        isOffline: true
+      };
+      setReturns(prev => [offlineReturnObj, ...prev]);
+      onNotice({ type: 'warning', text: 'You are offline. Return saved locally and will sync when internet returns.' });
+      setShowForm(false);
+      resetForm();
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      await api.post('/returns', { ...newReturn, items: itemsToReturn }, authConfig(session.token))
+      await api.post('/returns', returnPayload, authConfig(session.token))
       onNotice({ type: 'success', text: 'Return processed successfully.' })
       setShowForm(false)
       if (refreshCoreData) await refreshCoreData()

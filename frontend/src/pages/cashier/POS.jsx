@@ -386,7 +386,44 @@ export function POS({
               </label>
             </div>
 
-            <div className="cluster gap-2 mt-1">
+            <label className="field mt-2">
+              <span>Return Policy</span>
+              <div className="cluster gap-2">
+                <select
+                  className="input"
+                  style={{ height: '42px', flex: 1 }}
+                  value={checkoutForm.returnDays === '' ? 'custom' : [0, 3, 5, 7].includes(Number(checkoutForm.returnDays)) ? checkoutForm.returnDays : 'custom'}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'custom') {
+                      setCheckoutForm({ ...checkoutForm, returnDays: '' });
+                    } else {
+                      setCheckoutForm({ ...checkoutForm, returnDays: Number(val) });
+                    }
+                  }}
+                >
+                  <option value={0}>No Returns (0 days)</option>
+                  <option value={3}>3 Days</option>
+                  <option value={5}>5 Days</option>
+                  <option value={7}>7 Days</option>
+                  <option value="custom">Custom</option>
+                </select>
+                {(![0, 3, 5, 7].includes(Number(checkoutForm.returnDays)) || checkoutForm.returnDays === '') && (
+                  <div className="input-shell" style={{ height: '42px', width: '90px', padding: '0 8px' }}>
+                    <input
+                      className="ghost-input"
+                      type="number"
+                      placeholder="Days"
+                      min="0"
+                      value={checkoutForm.returnDays}
+                      onChange={(e) => setCheckoutForm({ ...checkoutForm, returnDays: e.target.value ? Number(e.target.value) : '' })}
+                    />
+                  </div>
+                )}
+              </div>
+            </label>
+
+            <div className="cluster gap-2 mt-2">
               {[5, 10, 15, 20].map(val => (
                 <button
                   key={val}

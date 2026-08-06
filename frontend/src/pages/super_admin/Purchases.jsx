@@ -38,6 +38,7 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
   const [formData, setFormData] = useState({
     supplier: '',
     branch: 'Main Branch',
+    returnDays: 0,
     items: [], // { productId, quantity, costPrice }
     total: 0
   })
@@ -109,6 +110,7 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
       await api.post('/purchases', {
         supplier: formData.supplier,
         branch: formData.branch,
+        returnDays: formData.returnDays,
         products: formattedProducts,
         total: formData.total,
         date: new Date()
@@ -116,7 +118,7 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
 
       onNotice({ type: 'success', text: 'Purchase order processed. Supplier invoice generated.' })
       setShowForm(false)
-      setFormData({ supplier: '', items: [], total: 0 })
+      setFormData({ supplier: '', branch: 'Main Branch', returnDays: 0, items: [], total: 0 })
       if (refreshCoreData) await refreshCoreData()
       fetchData()
     } catch (err) {
@@ -238,6 +240,43 @@ export default function Purchases({ api, session, onNotice, refreshCoreData }) {
                 <select className="input" value={formData.branch} onChange={e => setFormData({ ...formData, branch: e.target.value })} required>
                   {branches.map(b => <option key={b._id} value={b.name}>{b.name}</option>)}
                 </select>
+              </label>
+
+              <label className="field" style={{ flex: 1 }}>
+                <span>Return Policy</span>
+                <div className="cluster gap-2">
+                  <select
+                    className="input"
+                    style={{ flex: 1 }}
+                    value={formData.returnDays === '' ? 'custom' : [0, 3, 5, 7].includes(Number(formData.returnDays)) ? formData.returnDays : 'custom'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'custom') {
+                        setFormData({ ...formData, returnDays: '' });
+                      } else {
+                        setFormData({ ...formData, returnDays: Number(val) });
+                      }
+                    }}
+                  >
+                    <option value={0}>No Returns (0 days)</option>
+                    <option value={3}>3 Days</option>
+                    <option value={5}>5 Days</option>
+                    <option value={7}>7 Days</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  {(![0, 3, 5, 7].includes(Number(formData.returnDays)) || formData.returnDays === '') && (
+                    <div className="input-shell compact" style={{ width: '80px', padding: '0 8px' }}>
+                      <input
+                        className="ghost-input"
+                        type="number"
+                        placeholder="Days"
+                        min="0"
+                        value={formData.returnDays}
+                        onChange={(e) => setFormData({ ...formData, returnDays: e.target.value ? Number(e.target.value) : '' })}
+                      />
+                    </div>
+                  )}
+                </div>
               </label>
             </div>
 
