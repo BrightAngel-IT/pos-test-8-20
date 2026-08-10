@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 import { authConfig, formatCurrency, formatDate, getBaseUrl } from '../../utils'
 import { SectionHeading } from '../../components/SectionHeading'
-import { getOfflineSales, getOfflineSettlements, getOfflineReturns } from '../../utils/offlineSync'
+import { getOfflineSales } from '../../utils/offlineSync'
 
 export default function AccountStatement({ api, session, onNotice, company, customers }) {
   const { type, id } = useParams()
@@ -72,37 +72,31 @@ export default function AccountStatement({ api, session, onNotice, company, cust
     setLoading(true)
     try {
       const config = authConfig(session.token)
-      
-      let entityData = null;
-      let invoicesRes = { data: [] };
-      let paymentsRes = { data: [] };
-      let returnsRes = { data: [] };
-      let salesRes = { data: { sales: [] } };
+      const [entityRes, invoicesRes, paymentsRes, returnsRes, salesRes] = await Promise.all([
+        api.get(`/${type}s/${id}`, config),
+        api.get(`/${type === 'customer' ? 'customer-invoices/customer' : 'supplier-invoices/supplier'}/${id}`, config),
+        api.get(`/${type === 'customer' ? 'payments' : 'supplier-payments'}?${type}Id=${id}`, config),
+        api.get(`/returns?entityId=${id}`, config),
+        type === 'customer' ? api.get(`/sales?customerId=${id}`, config) : Promise.resolve({ data: { sales: [] } })
+      ])
 
+      let entityData = null;
       try {
-        const [eRes, iRes, pRes, rRes, sRes] = await Promise.all([
-          api.get(`/${type}s/${id}`, config),
-          api.get(`/${type === 'customer' ? 'customer-invoices/customer' : 'supplier-invoices/supplier'}/${id}`, config),
-          api.get(`/${type === 'customer' ? 'payments' : 'supplier-payments'}?${type}Id=${id}`, config),
-          api.get(`/returns?entityId=${id}`, config),
-          type === 'customer' ? api.get(`/sales?customerId=${id}`, config) : Promise.resolve({ data: { sales: [] } })
-        ])
-        entityData = eRes.data;
-        invoicesRes = iRes;
-        paymentsRes = pRes;
-        returnsRes = rRes;
-        salesRes = sRes;
+        const entityRes = await api.get(`/${type}s/${id}`, config);
+        entityData = entityRes.data;
       } catch (err) {
-        if (!navigator.onLine) {
-          if (type === 'customer' && customers) {
-            entityData = customers.find(c => c._id === id);
-          }
+        if (!navigator.onLine && type === 'customer' && customers) {
+          entityData = customers.find(c => c._id === id);
         } else {
           throw err;
         }
       }
 
       setEntity(entityData)
+      setInvoices(invoicesRes.data || [])
+      setPayments(paymentsRes.data || [])
+      setReturns(returnsRes.data || [])
+
       const allSales = salesRes.data.sales || [];
 
       // Fetch offline sales for this customer if offline or to show pending ones
@@ -134,15 +128,17 @@ export default function AccountStatement({ api, session, onNotice, company, cust
         return null;
       }).filter(Boolean);
 
+      const { getOfflineSettlements, getOfflineReturns } = await import('../../utils/offlineSync');
       const pendingSettlements = await getOfflineSettlements();
-      const offlineSettlements = pendingSettlements
-        .filter(s => (String(s.customerId) === id || String(s.supplierId) === id))
+      const offlineSettlements = (pendingSettlements || [])
+        .filter(s => (String(s.customerId) === String(id) || String(s.supplierId) === String(id)))
         .map(s => ({
-          _id: s.localId,
+          _id: String(s.localId),
           paymentDate: s.paymentDate || new Date(s.localId).toISOString(),
+          createdAt: new Date(s.localId).toISOString(),
           paymentNo: `PAY-${s.localId}`,
-          paymentMethod: s.paymentMethod,
-          totalAmount: s.totalAmount,
+          paymentMethod: s.paymentMethod || 'CASH',
+          totalAmount: Number(s.totalAmount) || 0,
           isOffline: true,
           allocations: (s.allocations || []).map(a => ({
             ...a,
@@ -151,8 +147,8 @@ export default function AccountStatement({ api, session, onNotice, company, cust
         }));
 
       const pendingReturns = await getOfflineReturns();
-      const offlineReturns = pendingReturns
-        .filter(r => String(r.entityId) === id)
+      const offlineReturns = (pendingReturns || [])
+        .filter(r => String(r.entityId) === String(id))
         .map(r => ({
           ...r,
           _id: String(r.localId),

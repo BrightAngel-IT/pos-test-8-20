@@ -70,65 +70,24 @@ export default function AccountStatement({ api, session, onNotice, company }) {
     setLoading(true)
     try {
       const config = authConfig(session.token)
-      let entityData = null;
-      let invoicesRes = { data: [] };
-      let paymentsRes = { data: [] };
-      let returnsRes = { data: [] };
-
-      try {
-        const [eRes, iRes, pRes, rRes] = await Promise.all([
-          api.get(`/${type}s/${id}`, config),
-          api.get(`/${type === 'customer' ? 'customer-invoices/customer' : 'supplier-invoices/supplier'}/${id}`, config),
-          api.get(`/${type === 'customer' ? 'payments' : 'supplier-payments'}?${type}Id=${id}`, config),
-          api.get(`/returns?entityId=${id}`, config)
-        ])
-        entityData = eRes.data;
-        invoicesRes = iRes;
-        paymentsRes = pRes;
-        returnsRes = rRes;
-      } catch (err) {
-        if (navigator.onLine) {
-          throw err;
-        }
-      }
-
-      let offlineInvoices = [];
-      if (type === 'customer') {
-        const { getOfflineSales } = await import('../../utils/offlineSync');
-        const pendingSales = await getOfflineSales();
-        const offlineSales = pendingSales.filter(s => String(s.customerId) === id);
-        offlineInvoices = offlineSales.map(sale => {
-          let creditAmount = 0;
-          if (sale.paymentMethod === 'credit') {
-            creditAmount = sale.total || sale.items?.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0) || 0;
-          } else if (sale.paymentMethod === 'split' && sale.splitPayments) {
-            const creditPart = sale.splitPayments.find(p => p.method === 'credit');
-            if (creditPart) creditAmount = Number(creditPart.amount || 0);
-          }
-          if (creditAmount > 0) {
-            return {
-              _id: sale.localId,
-              date: new Date(sale.localId).toISOString(),
-              invoiceNo: `INVC-${sale.localId}`,
-              totalAmount: creditAmount,
-              status: 'UNPAID',
-              isOffline: true
-            };
-          }
-          return null;
-        }).filter(Boolean);
-      }
+      const [entityRes, invoicesRes, paymentsRes, returnsRes] = await Promise.all([
+        api.get(`/${type}s/${id}`, config),
+        api.get(`/${type === 'customer' ? 'customer-invoices/customer' : 'supplier-invoices/supplier'}/${id}`, config),
+        api.get(`/${type === 'customer' ? 'payments' : 'supplier-payments'}?${type}Id=${id}`, config),
+        api.get(`/returns?entityId=${id}`, config)
+      ])
 
       const { getOfflineSettlements, getOfflineReturns } = await import('../../utils/offlineSync');
       const pendingSettlements = await getOfflineSettlements();
-      const offlineSettlements = pendingSettlements
-        .filter(s => (String(s.customerId) === id || String(s.supplierId) === id))
+      const offlineSettlements = (pendingSettlements || [])
+        .filter(s => (String(s.customerId) === String(id) || String(s.supplierId) === String(id)))
         .map(s => ({
-          _id: s.localId,
+          _id: String(s.localId),
           paymentDate: s.paymentDate || new Date(s.localId).toISOString(),
+          createdAt: new Date(s.localId).toISOString(),
           paymentNo: `PAY-${s.localId}`,
-          paymentMethod: s.paymentMethod,
-          totalAmount: s.totalAmount,
+          paymentMethod: s.paymentMethod || 'CASH',
+          totalAmount: Number(s.totalAmount) || 0,
           isOffline: true,
           allocations: (s.allocations || []).map(a => ({
             ...a,
@@ -137,8 +96,8 @@ export default function AccountStatement({ api, session, onNotice, company }) {
         }));
 
       const pendingReturns = await getOfflineReturns();
-      const offlineReturns = pendingReturns
-        .filter(r => String(r.entityId) === id)
+      const offlineReturns = (pendingReturns || [])
+        .filter(r => String(r.entityId) === String(id))
         .map(r => ({
           ...r,
           _id: String(r.localId),
@@ -148,7 +107,7 @@ export default function AccountStatement({ api, session, onNotice, company }) {
         }));
 
       setEntity(entityRes.data)
-      setInvoices([...(invoicesRes.data || []), ...offlineInvoices])
+      setInvoices(invoicesRes.data || [])
       setPayments([...(paymentsRes.data || []), ...offlineSettlements])
       setReturns([...(returnsRes.data || []), ...offlineReturns])
     } catch (err) {
@@ -198,10 +157,10 @@ export default function AccountStatement({ api, session, onNotice, company }) {
     transactions.sort((a, b) => {
       const dA = new Date(a.date)
       const dB = new Date(b.date)
-      const isSameDay = dA.getFullYear() === dB.getFullYear() && 
-                        dA.getMonth() === dB.getMonth() && 
-                        dA.getDate() === dB.getDate()
-      
+      const isSameDay = dA.getFullYear() === dB.getFullYear() &&
+        dA.getMonth() === dB.getMonth() &&
+        dA.getDate() === dB.getDate()
+
       if (isSameDay) {
         const cA = new Date(a.raw.createdAt || a.date)
         const cB = new Date(b.raw.createdAt || b.date)
