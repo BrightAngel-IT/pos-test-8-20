@@ -94,6 +94,26 @@ export function PaymentAllocation({ api, session, onNotice }) {
         const { getOfflineSettlements } = await import('../../utils/offlineSync')
         const pendingSettlements = await getOfflineSettlements()
 
+        // Deduct offline settlements from online invoices
+        outstanding = outstanding.map(inv => {
+          let settledOffline = 0;
+          pendingSettlements.forEach(settlement => {
+            if (settlement.allocations && Array.isArray(settlement.allocations)) {
+              settlement.allocations.forEach(alloc => {
+                if (String(alloc.invoiceId) === String(inv._id) || String(alloc.invoiceId) === String(inv.invoiceNo) || String(alloc.invoiceId) === String(inv.invoiceNumber)) {
+                  settledOffline += Number(alloc.allocatedAmount);
+                }
+              });
+            }
+          });
+          const originalBalance = inv.balanceAmount ?? inv.totalAmount;
+          const newBalance = originalBalance - settledOffline;
+          return {
+            ...inv,
+            balanceAmount: Math.max(0, newBalance)
+          };
+        }).filter(inv => inv.balanceAmount > 0);
+
         const offlineInvoices = offlineSales.map(sale => {
           let creditAmount = 0
           if (sale.paymentMethod?.toLowerCase() === 'credit') {
@@ -105,14 +125,15 @@ export function PaymentAllocation({ api, session, onNotice }) {
           
           let settledOffline = 0
           const offlineIdString = String(sale.localId)
+          const hexId = String(sale.localId).padStart(24, '0').slice(0, 24)
           pendingSettlements.forEach(settlement => {
             if (settlement.allocations && Array.isArray(settlement.allocations)) {
               settlement.allocations.forEach(alloc => {
-                if (alloc.invoiceId === offlineIdString) {
+                if (String(alloc.invoiceId) === offlineIdString || String(alloc.invoiceId) === hexId) {
                   settledOffline += Number(alloc.allocatedAmount)
                 }
                 const invNo = sale.invoiceNumber || sale.invoiceNo || `INVC-${sale.localId}`
-                if (alloc.invoiceId === invNo) {
+                if (String(alloc.invoiceId) === String(invNo)) {
                   settledOffline += Number(alloc.allocatedAmount)
                 }
               })
@@ -122,7 +143,6 @@ export function PaymentAllocation({ api, session, onNotice }) {
           const balanceAmount = creditAmount - settledOffline
 
           if (balanceAmount > 0) {
-            const hexId = String(sale.localId).padStart(24, '0').slice(0, 24)
             return {
               _id: hexId,
               date: sale.createdAt || sale.date || new Date(sale.localId || Date.now()).toISOString(),

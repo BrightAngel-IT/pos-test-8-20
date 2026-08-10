@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 import { authConfig, formatCurrency, formatDate, getBaseUrl } from '../../utils'
 import { SectionHeading } from '../../components/SectionHeading'
-import { getOfflineSales } from '../../utils/offlineSync'
+import { getOfflineSales, getOfflineSettlements, getOfflineReturns } from '../../utils/offlineSync'
 
 export default function AccountStatement({ api, session, onNotice, company, customers }) {
   const { type, id } = useParams()
@@ -72,31 +72,37 @@ export default function AccountStatement({ api, session, onNotice, company, cust
     setLoading(true)
     try {
       const config = authConfig(session.token)
-      const [entityRes, invoicesRes, paymentsRes, returnsRes, salesRes] = await Promise.all([
-        api.get(`/${type}s/${id}`, config),
-        api.get(`/${type === 'customer' ? 'customer-invoices/customer' : 'supplier-invoices/supplier'}/${id}`, config),
-        api.get(`/${type === 'customer' ? 'payments' : 'supplier-payments'}?${type}Id=${id}`, config),
-        api.get(`/returns?entityId=${id}`, config),
-        type === 'customer' ? api.get(`/sales?customerId=${id}`, config) : Promise.resolve({ data: { sales: [] } })
-      ])
-
+      
       let entityData = null;
+      let invoicesRes = { data: [] };
+      let paymentsRes = { data: [] };
+      let returnsRes = { data: [] };
+      let salesRes = { data: { sales: [] } };
+
       try {
-        const entityRes = await api.get(`/${type}s/${id}`, config);
-        entityData = entityRes.data;
+        const [eRes, iRes, pRes, rRes, sRes] = await Promise.all([
+          api.get(`/${type}s/${id}`, config),
+          api.get(`/${type === 'customer' ? 'customer-invoices/customer' : 'supplier-invoices/supplier'}/${id}`, config),
+          api.get(`/${type === 'customer' ? 'payments' : 'supplier-payments'}?${type}Id=${id}`, config),
+          api.get(`/returns?entityId=${id}`, config),
+          type === 'customer' ? api.get(`/sales?customerId=${id}`, config) : Promise.resolve({ data: { sales: [] } })
+        ])
+        entityData = eRes.data;
+        invoicesRes = iRes;
+        paymentsRes = pRes;
+        returnsRes = rRes;
+        salesRes = sRes;
       } catch (err) {
-        if (!navigator.onLine && type === 'customer' && customers) {
-          entityData = customers.find(c => c._id === id);
+        if (!navigator.onLine) {
+          if (type === 'customer' && customers) {
+            entityData = customers.find(c => c._id === id);
+          }
         } else {
           throw err;
         }
       }
 
       setEntity(entityData)
-      setInvoices(invoicesRes.data || [])
-      setPayments(paymentsRes.data || [])
-      setReturns(returnsRes.data || [])
-
       const allSales = salesRes.data.sales || [];
 
       // Fetch offline sales for this customer if offline or to show pending ones
@@ -128,9 +134,36 @@ export default function AccountStatement({ api, session, onNotice, company, cust
         return null;
       }).filter(Boolean);
 
+      const pendingSettlements = await getOfflineSettlements();
+      const offlineSettlements = pendingSettlements
+        .filter(s => (String(s.customerId) === id || String(s.supplierId) === id))
+        .map(s => ({
+          _id: s.localId,
+          paymentDate: s.paymentDate || new Date(s.localId).toISOString(),
+          paymentNo: `PAY-${s.localId}`,
+          paymentMethod: s.paymentMethod,
+          totalAmount: s.totalAmount,
+          isOffline: true,
+          allocations: (s.allocations || []).map(a => ({
+            ...a,
+            invoiceId: { invoiceNo: a.invoiceId }
+          }))
+        }));
+
+      const pendingReturns = await getOfflineReturns();
+      const offlineReturns = pendingReturns
+        .filter(r => String(r.entityId) === id)
+        .map(r => ({
+          ...r,
+          _id: String(r.localId),
+          createdAt: new Date(r.localId).toISOString(),
+          status: 'COMPLETED',
+          isOffline: true
+        }));
+
       setInvoices([...(invoicesRes.data || []), ...offlineInvoices]);
-      setPayments(paymentsRes.data || [])
-      setReturns(returnsRes.data || [])
+      setPayments([...(paymentsRes.data || []), ...offlineSettlements]);
+      setReturns([...(returnsRes.data || []), ...offlineReturns]);
 
       const immediate = [...allSales, ...offlineSales].map(sale => {
         let creditAmount = 0;

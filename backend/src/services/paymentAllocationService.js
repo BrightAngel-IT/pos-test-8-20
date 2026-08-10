@@ -76,7 +76,7 @@ async function createPaymentWithAllocations(paymentData) {
       await allocation.save({ session });
 
       invoice.balanceAmount = Number((invoice.balanceAmount - alloc.allocatedAmount).toFixed(2));
-      
+
       if (invoice.balanceAmount === 0) {
         invoice.status = 'PAID';
       } else {

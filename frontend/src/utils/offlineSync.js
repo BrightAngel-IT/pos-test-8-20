@@ -78,7 +78,7 @@ export const syncOfflineSales = async () => {
                         try {
                             const sessionData = JSON.parse(sessionString);
                             token = sessionData.token;
-                        } catch (e) {}
+                        } catch (e) { }
                     }
                     const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
                     const response = await axios.post(`${API_URL}/sales`, sale, config);
@@ -95,7 +95,7 @@ export const syncOfflineSales = async () => {
                                 let updated = false;
                                 const offlineHexId = String(sale.localId).padStart(24, '0').slice(0, 24);
                                 const oldInvNo = sale.invoiceNumber || sale.invoiceNo || `INVC-${sale.localId}`;
-                                
+
                                 for (const st of pSettlements) {
                                     if (st.allocations && Array.isArray(st.allocations)) {
                                         for (const alloc of st.allocations) {
@@ -176,7 +176,7 @@ export const syncOfflineReturns = async () => {
                         try {
                             const sessionData = JSON.parse(sessionString);
                             token = sessionData.token;
-                        } catch (e) {}
+                        } catch (e) { }
                     }
                     const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
                     await axios.post(`${API_URL}/returns`, ret, config);
@@ -239,7 +239,7 @@ export const syncOfflineSettlements = async () => {
                         try {
                             const sessionData = JSON.parse(sessionString);
                             token = sessionData.token;
-                        } catch (e) {}
+                        } catch (e) { }
                     }
                     const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
                     await axios.post(`${API_URL}${settlement.endpoint || '/payments'}`, settlement, config);
