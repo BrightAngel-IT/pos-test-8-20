@@ -119,7 +119,7 @@ export default function AccountStatement({ api, session, onNotice, company, cust
           return {
             _id: sale.localId,
             date: new Date(sale.localId).toISOString(),
-            invoiceNo: `OFFLINE-INV-${sale.localId}`,
+            invoiceNo: `INVC-${sale.localId}`,
             totalAmount: creditAmount,
             status: 'UNPAID',
             isOffline: true
@@ -146,7 +146,7 @@ export default function AccountStatement({ api, session, onNotice, company, cust
           return {
             _id: sale._id || sale.localId,
             date: sale.createdAt || new Date(sale.localId).toISOString(),
-            reference: sale.invoiceNumber || `OFFLINE-${sale.localId}`,
+            reference: sale.invoiceNumber || `INVC-${sale.localId}`,
             method: sale.paymentMethod === 'split' ? 'SPLIT (CASH/CARD)' : sale.paymentMethod.toUpperCase(),
             amount: immediateAmount,
             isOffline: sale.isOffline,

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import { SectionHeading } from '../../components/SectionHeading'
 import { readErrorMessage, formatCurrency, authConfig } from '../../utils'
-import { saveSettlementOffline } from '../../utils/offlineSync'
+import { saveSettlementOffline, getOfflineSales } from '../../utils/offlineSync'
 import { NoticeBanner } from '../../components/NoticeBanner'
 
 export function PaymentAllocation({ api, session, onNotice }) {
@@ -72,19 +72,78 @@ export function PaymentAllocation({ api, session, onNotice }) {
 
   async function fetchInvoices(id) {
     setLoading(true)
+    let outstanding = []
     try {
       const endpoint = settlementMode === 'customer'
         ? `/customer-invoices/customer/${id}`
         : `/supplier-invoices/supplier/${id}`
       const res = await api.get(endpoint, authConfig(session.token))
       // Filter to show only unpaid/partially paid invoices
-      const outstanding = res.data.filter(inv => (inv.balanceAmount ?? inv.totalAmount) > 0)
-      setInvoices(outstanding)
+      outstanding = res.data.filter(inv => (inv.balanceAmount ?? inv.totalAmount) > 0)
     } catch (err) {
-      onNotice({ type: 'error', text: 'Failed to load outstanding invoices' })
-    } finally {
-      setLoading(false)
+      if (navigator.onLine) {
+        onNotice({ type: 'error', text: 'Failed to load outstanding invoices' })
+      }
     }
+
+    if (settlementMode === 'customer') {
+      try {
+        const pendingSales = await getOfflineSales()
+        const offlineSales = pendingSales.filter(s => String(s.customerId) === String(id))
+        // Fetch offline settlements to reduce balances
+        const { getOfflineSettlements } = await import('../../utils/offlineSync')
+        const pendingSettlements = await getOfflineSettlements()
+
+        const offlineInvoices = offlineSales.map(sale => {
+          let creditAmount = 0
+          if (sale.paymentMethod?.toLowerCase() === 'credit') {
+            creditAmount = Number(sale.total || sale.products?.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0) || 0)
+          } else if (sale.paymentMethod?.toLowerCase() === 'split' && sale.splitPayments) {
+            const creditPart = sale.splitPayments.find(p => p.method?.toLowerCase() === 'credit')
+            if (creditPart) creditAmount = Number(creditPart.amount || 0)
+          }
+          
+          let settledOffline = 0
+          const offlineIdString = String(sale.localId)
+          pendingSettlements.forEach(settlement => {
+            if (settlement.allocations && Array.isArray(settlement.allocations)) {
+              settlement.allocations.forEach(alloc => {
+                if (alloc.invoiceId === offlineIdString) {
+                  settledOffline += Number(alloc.allocatedAmount)
+                }
+                const invNo = sale.invoiceNumber || sale.invoiceNo || `INVC-${sale.localId}`
+                if (alloc.invoiceId === invNo) {
+                  settledOffline += Number(alloc.allocatedAmount)
+                }
+              })
+            }
+          })
+          
+          const balanceAmount = creditAmount - settledOffline
+
+          if (balanceAmount > 0) {
+            const hexId = String(sale.localId).padStart(24, '0').slice(0, 24)
+            return {
+              _id: hexId,
+              date: sale.createdAt || sale.date || new Date(sale.localId || Date.now()).toISOString(),
+              invoiceNo: sale.invoiceNumber || sale.invoiceNo || `INVC-${sale.localId}`,
+              totalAmount: creditAmount,
+              balanceAmount: balanceAmount,
+              status: 'UNPAID',
+              isOffline: true
+            }
+          }
+          return null
+        }).filter(Boolean)
+
+        outstanding = [...outstanding, ...offlineInvoices]
+      } catch (e) {
+        console.error("Error loading offline credit sales", e)
+      }
+    }
+
+    setInvoices(outstanding)
+    setLoading(false)
   }
 
   const handleAllocationChange = (invoiceId, value, balance) => {
@@ -135,7 +194,7 @@ export function PaymentAllocation({ api, session, onNotice }) {
     if (!navigator.onLine) {
       await saveSettlementOffline(payload, endpoint)
       onNotice({ type: 'warning', text: `You are offline. ${settlementMode === 'customer' ? 'Collection' : 'Settlement'} saved locally and will sync when internet returns.` })
-      
+
       if (selectedEntityId) {
         // Optimistically update invoices
         setInvoices(prev => prev.map(inv => {
@@ -160,9 +219,9 @@ export function PaymentAllocation({ api, session, onNotice }) {
     }
 
     const attemptOffline = async () => {
-      const saved = await saveSettlementOffline(payload, endpoint)
+      const saved = await saveSettlementOffline(payload, '/payments')
       if (saved) {
-        onNotice({ type: 'warning', text: 'Offline mode: Settlement saved locally and will sync when online.' })
+        onNotice({ type: 'warning', text: 'Offline mode: Payment saved locally and will sync when online.' })
         setPaymentForm({
           totalAmount: '',
           paymentMethod: 'CASH',
@@ -170,8 +229,11 @@ export function PaymentAllocation({ api, session, onNotice }) {
           paymentDate: new Date().toISOString().split('T')[0],
         })
         setAllocations({})
+        if (selectedEntityId) {
+          fetchInvoices(selectedEntityId)
+        }
       } else {
-        onNotice({ type: 'error', text: 'Failed to save settlement offline.' })
+        onNotice({ type: 'error', text: 'Failed to save payment offline.' })
       }
     }
 

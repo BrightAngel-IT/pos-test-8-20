@@ -1659,7 +1659,7 @@ async function getUsers(reqUser) {
   }
 
   if (reqUser && reqUser.role === 'admin') {
-    allUsers = allUsers.filter(u => u.branch === reqUser.branch);
+    allUsers = allUsers.filter(u => String(u.branch || '').toLowerCase() === String(reqUser.branch || '').toLowerCase());
   }
 
   return allUsers.map((user) => sanitizeUser(user));

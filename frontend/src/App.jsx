@@ -808,6 +808,7 @@ function App() {
         items: cart.map((item) => ({ productId: item.productId, quantity: item.quantity })),
         returnDays: Number(checkoutForm.returnDays || 0),
         splitPayments: splitPayments.length > 0 ? splitPayments : undefined,
+        total: cartTotal,
       };
 
       const resetCartAndForm = () => {
