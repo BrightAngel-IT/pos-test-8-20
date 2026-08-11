@@ -205,17 +205,20 @@ export default function AccountStatement({ api, session, onNotice, company, cust
         status: inv.status,
         raw: inv
       })),
-      ...payments.map(pay => ({
-        _id: pay._id,
-        date: pay.paymentDate,
-        type: 'Payment',
-        reference: pay.paymentNo,
-        method: pay.paymentMethod || 'N/A',
-        billing: 0,
-        payment: pay.totalAmount,
-        status: 'PAID',
-        raw: pay
-      })),
+      ...payments.map(pay => {
+        const allocatedAmount = (pay.allocations || []).reduce((sum, a) => sum + Number(a.allocatedAmount || 0), 0)
+        return {
+          _id: pay._id,
+          date: pay.paymentDate,
+          type: 'Payment',
+          reference: pay.paymentNo,
+          method: pay.paymentMethod || 'N/A',
+          billing: 0,
+          payment: allocatedAmount,
+          status: 'PAID',
+          raw: pay
+        }
+      }),
       ...returns.flatMap(ret => {
         const rows = [
           {
@@ -311,7 +314,7 @@ export default function AccountStatement({ api, session, onNotice, company, cust
 
   const stats = useMemo(() => {
     const totalInvoiced = invoices.reduce((sum, i) => sum + i.totalAmount, 0)
-    const totalPaid = payments.reduce((sum, p) => sum + p.totalAmount, 0)
+    const totalPaid = payments.reduce((sum, p) => sum + (p.allocations || []).reduce((aSum, a) => aSum + Number(a.allocatedAmount || 0), 0), 0)
     const totalReturned = returns.filter(ret => ret.refundMethod === 'credit-note').reduce((sum, r) => sum + r.totalAmount, 0)
 
     const totalImmediate = immediatePayments.reduce((sum, p) => sum + p.amount, 0)

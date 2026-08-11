@@ -366,7 +366,7 @@ export function POS({
                   <option value="cash">Cash Payment</option>
                   <option value="card">Card Payment</option>
                   <option value="upi">UPI / Digital</option>
-                  <option value="credit">Store Credit / Account</option>
+                  <option value="credit" disabled={!checkoutForm.customerId}>Store Credit / Account</option>
                   <option value="split">Split / Multiple</option>
                 </select>
               </label>
@@ -386,43 +386,6 @@ export function POS({
               </label>
             </div>
 
-            <label className="field mt-2">
-              <span>Return Policy</span>
-              <div className="cluster gap-2">
-                <select
-                  className="input"
-                  style={{ height: '42px', flex: 1 }}
-                  value={checkoutForm.returnDays === '' ? 'custom' : [0, 3, 5, 7].includes(Number(checkoutForm.returnDays)) ? checkoutForm.returnDays : 'custom'}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === 'custom') {
-                      setCheckoutForm({ ...checkoutForm, returnDays: '' });
-                    } else {
-                      setCheckoutForm({ ...checkoutForm, returnDays: Number(val) });
-                    }
-                  }}
-                >
-                  <option value={0}>No Returns (0 days)</option>
-                  <option value={3}>3 Days</option>
-                  <option value={5}>5 Days</option>
-                  <option value={7}>7 Days</option>
-                  <option value="custom">Custom</option>
-                </select>
-                {(![0, 3, 5, 7].includes(Number(checkoutForm.returnDays)) || checkoutForm.returnDays === '') && (
-                  <div className="input-shell" style={{ height: '42px', width: '90px', padding: '0 8px' }}>
-                    <input
-                      className="ghost-input"
-                      type="number"
-                      placeholder="Days"
-                      min="0"
-                      value={checkoutForm.returnDays}
-                      onChange={(e) => setCheckoutForm({ ...checkoutForm, returnDays: e.target.value ? Number(e.target.value) : '' })}
-                    />
-                  </div>
-                )}
-              </div>
-            </label>
-
             <div className="cluster gap-2 mt-2">
               {[5, 10, 15, 20].map(val => (
                 <button
@@ -441,14 +404,17 @@ export function POS({
               <div className="stack gap-3 p-3 mt-1" style={{ borderRadius: '14px', background: 'var(--panel-strong)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
                 <div className="between">
                   <span className="muted small font-strong">Received Amount</span>
-                  <input
-                    className="ghost-input"
-                    type="number"
-                    placeholder="0.00"
-                    style={{ textAlign: 'right', fontSize: '1.1rem', width: '120px', fontWeight: 800, color: 'var(--text-strong)' }}
-                    value={checkoutForm.receivedAmount || ''}
-                    onChange={(e) => setCheckoutForm({ ...checkoutForm, receivedAmount: e.target.value })}
-                  />
+                  <div style={{ position: 'relative', width: '130px' }}>
+                    <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.9rem' }}>Rs.</span>
+                    <input
+                      className="input"
+                      type="number"
+                      placeholder="0.00"
+                      style={{ textAlign: 'right', paddingLeft: '32px', fontSize: '1.05rem', width: '100%', fontWeight: 700, height: '38px', borderRadius: '8px' }}
+                      value={checkoutForm.receivedAmount || ''}
+                      onChange={(e) => setCheckoutForm({ ...checkoutForm, receivedAmount: e.target.value })}
+                    />
+                  </div>
                 </div>
                 <div className="between pt-2" style={{ borderTop: '1px dashed var(--border)' }}>
                   <span className="muted small font-strong">Change to Return</span>
@@ -1041,7 +1007,13 @@ export function POS({
               <button
                 type="button"
                 onClick={() => {
-                  setCheckoutForm({ ...checkoutForm, customerName: 'Walk-in Customer', customerId: '' })
+                  setCheckoutForm({ 
+                    ...checkoutForm, 
+                    customerName: 'Walk-in Customer', 
+                    customerId: '',
+                    paymentMethod: checkoutForm.paymentMethod === 'credit' ? 'cash' : checkoutForm.paymentMethod,
+                    splitCredit: '' 
+                  })
                   setIsCustomerModalOpen(false)
                   setCustomerSearch('')
                 }}

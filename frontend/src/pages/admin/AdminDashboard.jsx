@@ -25,7 +25,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 
 export function AdminDashboard({ api, overview, session, startTransition }) {
   const navigate = useNavigate();
-  
+
   const [showAllStock, setShowAllStock] = useState(false)
   const [showAllVelocity, setShowAllVelocity] = useState(false)
   const [showAllInvoices, setShowAllInvoices] = useState(false)
@@ -56,6 +56,32 @@ export function AdminDashboard({ api, overview, session, startTransition }) {
 
   return (
     <div className="stack gap-6 animate-fade">
+      {/* Filters Row */}
+      <div className="between align-center panel p-4 glass-panel" style={{ borderRadius: '16px' }}>
+        <h2 className="font-strong m-0">Operations Command</h2>
+        <div className="cluster gap-3 wrap">
+          {trendRange === 'custom' && (
+            <div className="cluster gap-2 align-center">
+              <input type="date" className="input" value={customDates.start} onChange={e => setCustomDates(prev => ({ ...prev, start: e.target.value }))} style={{ padding: '8px 12px', fontSize: '0.85rem' }} />
+              <span className="muted small">to</span>
+              <input type="date" className="input" value={customDates.end} onChange={e => setCustomDates(prev => ({ ...prev, end: e.target.value }))} style={{ padding: '8px 12px', fontSize: '0.85rem' }} />
+            </div>
+          )}
+          <select 
+            className="input" 
+            value={trendRange} 
+            onChange={e => setTrendRange(e.target.value)} 
+            style={{ padding: '8px 12px', fontSize: '0.9rem', width: '160px', backgroundColor: 'var(--panel-strong)' }}
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="annual">Annual</option>
+            <option value="custom">Custom Range</option>
+          </select>
+        </div>
+      </div>
+
       <section className="metric-grid">
         <MetricCard
           icon={Warehouse}
@@ -68,6 +94,12 @@ export function AdminDashboard({ api, overview, session, startTransition }) {
           title="Monthly Revenue"
           value={formatCurrency(overview?.metrics.revenueMonthly ?? 0)}
           helper="Current month sales"
+        />
+        <MetricCard
+          icon={Zap}
+          title="Total Balance"
+          value={formatCurrency(overview?.metrics.totalBalance ?? 0)}
+          helper="Net cash position"
         />
         <MetricCard
           icon={AlertCircle}
@@ -130,8 +162,8 @@ export function AdminDashboard({ api, overview, session, startTransition }) {
             ))}
             {(overview?.lowStockProducts?.length || 0) > displayLimit && (
               <div className="pt-3 mt-2 text-center" style={{ borderTop: '1px solid var(--border)' }}>
-                <button 
-                  className="btn btn-secondary w-full" 
+                <button
+                  className="btn btn-secondary w-full"
                   style={{ borderRadius: '14px' }}
                   onClick={() => setShowAllStock(true)}
                 >
@@ -166,8 +198,8 @@ export function AdminDashboard({ api, overview, session, startTransition }) {
             ))}
             {(overview?.topProducts?.length || 0) > displayLimit && (
               <div className="pt-3 mt-2 text-center" style={{ borderTop: '1px solid var(--border)' }}>
-                <button 
-                  className="btn btn-secondary w-full" 
+                <button
+                  className="btn btn-secondary w-full"
                   style={{ borderRadius: '14px' }}
                   onClick={() => setShowAllVelocity(true)}
                 >
@@ -202,8 +234,8 @@ export function AdminDashboard({ api, overview, session, startTransition }) {
             ))}
             {(overview?.recentSales?.length || 0) > displayLimit && (
               <div className="pt-3 mt-2 text-center" style={{ borderTop: '1px solid var(--border)' }}>
-                <button 
-                  className="btn btn-secondary w-full" 
+                <button
+                  className="btn btn-secondary w-full"
                   style={{ borderRadius: '14px' }}
                   onClick={() => setShowAllInvoices(true)}
                 >
@@ -217,23 +249,7 @@ export function AdminDashboard({ api, overview, session, startTransition }) {
 
       <section className="panel p-6 stack gap-5 glass-panel mt-6">
         <div className="between align-center wrap-row gap-3">
-          <SectionHeading title="Sales Trend" text="Revenue progression across selected time range." />
-          <div className="cluster gap-2">
-            {trendRange === 'custom' && (
-              <div className="cluster gap-2">
-                <input type="date" className="input small" value={customDates.start} onChange={e => setCustomDates(prev => ({...prev, start: e.target.value}))} />
-                <span className="muted">-</span>
-                <input type="date" className="input small" value={customDates.end} onChange={e => setCustomDates(prev => ({...prev, end: e.target.value}))} />
-              </div>
-            )}
-            <select className="input small" value={trendRange} onChange={(e) => setTrendRange(e.target.value)} style={{ width: 'auto' }}>
-              <option value="daily">Daily (Last 7 Days)</option>
-              <option value="weekly">Weekly (Last 8 Weeks)</option>
-              <option value="monthly">Monthly (Last 12 Months)</option>
-              <option value="annual">Annual (Last 5 Years)</option>
-              <option value="custom">Custom Range</option>
-            </select>
-          </div>
+          <SectionHeading title="Sales Trend" text="Revenue progression across selected timeline." />
         </div>
         <div style={{ width: '100%', height: '300px' }}>
           <ResponsiveContainer>

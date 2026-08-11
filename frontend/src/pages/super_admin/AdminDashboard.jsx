@@ -57,6 +57,12 @@ export function AdminDashboard({ overview, session, startTransition }) {
           helper="Current month sales"
         />
         <MetricCard
+          icon={Zap}
+          title="Total Balance"
+          value={formatCurrency(overview?.metrics.totalBalance ?? 0)}
+          helper="Net cash position"
+        />
+        <MetricCard
           icon={AlertCircle}
           title="Critical Alerts"
           value={String(overview?.metrics.lowStockCount ?? 0)}

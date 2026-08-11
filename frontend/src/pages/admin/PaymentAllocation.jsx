@@ -22,11 +22,11 @@ import {
   Users
 } from 'lucide-react'
 import { SectionHeading } from '../../components/SectionHeading'
-import { readErrorMessage, formatCurrency, authConfig } from '../../utils'
+import { readErrorMessage, formatCurrency, authConfig, printSettlementReceipt } from '../../utils'
 import { saveSettlementOffline, getOfflineSales } from '../../utils/offlineSync'
 import { NoticeBanner } from '../../components/NoticeBanner'
 
-export function PaymentAllocation({ api, session, onNotice }) {
+export function PaymentAllocation({ api, session, onNotice, company }) {
   const location = useLocation()
   const isSuperAdmin = session?.user?.role === 'super_admin'
   const initialMode = location.state?.mode || (isSuperAdmin ? 'supplier' : 'customer')
@@ -242,6 +242,28 @@ export function PaymentAllocation({ api, session, onNotice }) {
       const saved = await saveSettlementOffline(payload, '/payments')
       if (saved) {
         onNotice({ type: 'warning', text: 'Offline mode: Payment saved locally and will sync when online.' })
+        
+        // Find entity name for the receipt
+        const entityName = entities.find(e => String(e._id) === String(selectedEntityId))?.name || 'Customer'
+        
+        const enrichedAllocations = payload.allocations.map(a => {
+          const inv = invoices.find(i => String(i._id) === String(a.invoiceId) || String(i.invoiceNo) === String(a.invoiceId) || String(i.invoiceNumber) === String(a.invoiceId))
+          return {
+            ...a,
+            invoiceId: inv ? (inv.invoiceNo || inv.invoiceNumber || a.invoiceId) : a.invoiceId
+          }
+        })
+
+        const receiptPayment = {
+          ...payload,
+          localId: payload.localId || Date.now(),
+          createdAt: new Date().toISOString(),
+          customerName: settlementMode === 'customer' ? entityName : null,
+          supplierName: settlementMode === 'supplier' ? entityName : null,
+          allocations: enrichedAllocations
+        }
+        printSettlementReceipt(receiptPayment, session.user, company)
+
         setPaymentForm({
           totalAmount: '',
           paymentMethod: 'CASH',
@@ -262,8 +284,28 @@ export function PaymentAllocation({ api, session, onNotice }) {
         await attemptOffline()
       } else {
         try {
-          await api.post(endpoint, payload, authConfig(session.token))
+          const res = await api.post(endpoint, payload, authConfig(session.token))
           onNotice({ type: 'success', text: `${settlementMode === 'customer' ? 'Collection' : 'Settlement'} processed successfully` })
+
+          // Find entity name for the receipt
+          const entityName = entities.find(e => String(e._id) === String(selectedEntityId))?.name || 'Customer'
+          const createdPayment = res.data
+          
+          const enrichedAllocations = payload.allocations.map(a => {
+            const inv = invoices.find(i => String(i._id) === String(a.invoiceId) || String(i.invoiceNo) === String(a.invoiceId) || String(i.invoiceNumber) === String(a.invoiceId))
+            return {
+              ...a,
+              invoiceId: inv ? (inv.invoiceNo || inv.invoiceNumber || a.invoiceId) : a.invoiceId
+            }
+          })
+
+          const receiptPayment = {
+            ...createdPayment,
+            customerName: settlementMode === 'customer' ? entityName : null,
+            supplierName: settlementMode === 'supplier' ? entityName : null,
+            allocations: enrichedAllocations
+          }
+          printSettlementReceipt(receiptPayment, session.user, company)
 
           // Refresh invoices for the same entity instead of resetting selection
           if (selectedEntityId) {

@@ -204,7 +204,7 @@ function buildDemoSales(products, users) {
     {
       invoiceNumber: 'INV-20260424-1003',
       customerName: 'Home order',
-      paymentMethod: 'upi',
+      paymentMethod: 'card',
       discount: 0.75,
       tax: 0,
       createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
@@ -217,7 +217,7 @@ function buildDemoSales(products, users) {
     {
       invoiceNumber: 'INV-20260415-1004',
       customerName: 'Cafe bulk desk',
-      paymentMethod: 'bank-transfer',
+      paymentMethod: 'card',
       discount: 3.4,
       tax: 0,
       createdAt: new Date(Date.now() - 13 * 24 * 60 * 60 * 1000),

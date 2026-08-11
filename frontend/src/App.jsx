@@ -65,19 +65,19 @@ const api = axios.create({
 const demoCredentials = [
   {
     label: 'Super Admin Demo',
-    email: 'superadmin@gmail.com',
+    username: 'superadmin',
     password: 'superadmin123',
     role: 'Multi-branch operations and consolidated analytics',
   },
   {
     label: 'Admin Demo',
-    email: 'admin@gmail.com',
+    username: 'admin',
     password: 'admin123',
     role: 'Full reporting and inventory access',
   },
   {
     label: 'Cashier Demo',
-    email: 'cashier@gmail.com',
+    username: 'cashier',
     password: 'cashier123',
     role: 'Billing and stock browsing access',
   },
@@ -840,9 +840,10 @@ function App() {
       } else {
         try {
           const response = await api.post('/sales', saleData, authConfig(session.token))
+          const receivedAmt = checkoutForm.receivedAmount || 0;
           await refreshCoreData()
           resetCartAndForm()
-          printReceipt(response.data.sale, session.user, 0, company)
+          printReceipt(response.data.sale, session.user, receivedAmt, company)
           setNotice({ type: 'success', text: 'Sale completed.' })
         } catch (error) {
           if (!error.response) { // Network error like connection drop
@@ -968,6 +969,7 @@ function App() {
                 api={api}
                 session={session}
                 onNotice={setNotice}
+                company={company}
               />
             } />
 
@@ -1054,7 +1056,7 @@ function App() {
 
             <Route path="/purchases" element={<AdminRoute session={session}><Purchases api={api} session={session} onNotice={setNotice} refreshCoreData={refreshCoreData} /></AdminRoute>} />
             <Route path="/invoices" element={<AdminRoute session={session}><Invoices api={api} session={session} onNotice={setNotice} sales={sales} customers={customers} company={company} /></AdminRoute>} />
-            <Route path="/payments" element={<AdminRoute session={session}><PaymentAllocation api={api} session={session} onNotice={setNotice} /></AdminRoute>} />
+            <Route path="/payments" element={<AdminRoute session={session}><PaymentAllocation api={api} session={session} onNotice={setNotice} company={company} /></AdminRoute>} />
             <Route path="/accounts/:type/:id" element={<AccountStatement api={api} session={session} onNotice={setNotice} company={company} customers={customers} />} />
             <Route path="/returns" element={<Returns api={api} session={session} onNotice={setNotice} refreshCoreData={refreshCoreData} />} />
 

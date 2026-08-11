@@ -21,7 +21,8 @@ import {
   CornerUpLeft,
   CreditCard,
   RefreshCcw,
-  X
+  X,
+  Zap
 } from 'lucide-react'
 import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip } from 'recharts'
 import { MetricCard } from '../../components/MetricCard'
@@ -37,13 +38,14 @@ export function SuperAdminDashboard({ api, session }) {
   const [selectedActivityCategory, setSelectedActivityCategory] = useState(null)
   const [trendRange, setTrendRange] = useState('monthly')
   const [customDates, setCustomDates] = useState({ start: '', end: '' })
+  const [selectedBranch, setSelectedBranch] = useState('')
 
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true)
         const [overviewRes, branchesRes] = await Promise.all([
-          api.get(`/dashboard/overview?trendRange=${trendRange}&startDate=${customDates.start}&endDate=${customDates.end}`, authConfig(session.token)),
+          api.get(`/dashboard/overview?trendRange=${trendRange}&startDate=${customDates.start}&endDate=${customDates.end}${selectedBranch ? `&branch=${encodeURIComponent(selectedBranch)}` : ''}`, authConfig(session.token)),
           api.get('/branches', authConfig(session.token))
         ])
         setOverview(overviewRes.data)
@@ -55,7 +57,7 @@ export function SuperAdminDashboard({ api, session }) {
       }
     }
     fetchData()
-  }, [api, trendRange, customDates.start, customDates.end])
+  }, [api, trendRange, customDates.start, customDates.end, selectedBranch])
 
   if (loading) {
     return (
@@ -68,19 +70,63 @@ export function SuperAdminDashboard({ api, session }) {
 
   return (
     <div className="stack gap-6 animate-fade">
+      {/* Filters Row */}
+      <div className="between align-center panel p-4 glass-panel" style={{ borderRadius: '16px' }}>
+        <h2 className="font-strong m-0">Operations Command</h2>
+        <div className="cluster gap-3 wrap">
+          {trendRange === 'custom' && (
+            <div className="cluster gap-2 align-center">
+              <input type="date" className="input" value={customDates.start} onChange={e => setCustomDates(prev => ({ ...prev, start: e.target.value }))} style={{ padding: '8px 12px', fontSize: '0.85rem' }} />
+              <span className="muted small">to</span>
+              <input type="date" className="input" value={customDates.end} onChange={e => setCustomDates(prev => ({ ...prev, end: e.target.value }))} style={{ padding: '8px 12px', fontSize: '0.85rem' }} />
+            </div>
+          )}
+          <select 
+            className="input" 
+            value={trendRange} 
+            onChange={e => setTrendRange(e.target.value)} 
+            style={{ padding: '8px 12px', fontSize: '0.9rem', width: '160px', backgroundColor: 'var(--panel-strong)' }}
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="annual">Annual</option>
+            <option value="custom">Custom Range</option>
+          </select>
+
+          <select 
+            className="input" 
+            value={selectedBranch} 
+            onChange={e => setSelectedBranch(e.target.value)} 
+            style={{ padding: '8px 12px', fontSize: '0.9rem', width: '200px', backgroundColor: 'var(--panel-strong)' }}
+          >
+            <option value="">All Branches</option>
+            {branches.filter(b => b.status === 'active').map(b => (
+              <option key={b._id} value={b.name}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Metrics Row */}
       <section className="metric-grid">
         <MetricCard
           icon={TrendingUp}
-          title="Consolidated Monthly Rev"
+          title={selectedBranch ? "Branch Monthly Rev" : "Consolidated Monthly Rev"}
           value={formatCurrency(overview?.metrics.revenueMonthly ?? 0)}
           helper="Current month sales"
         />
         <MetricCard
           icon={Warehouse}
-          title="Consolidated Stock"
+          title={selectedBranch ? "Branch Stock" : "Consolidated Stock"}
           value={formatCurrency(overview?.metrics.inventoryValue ?? 0)}
           helper={`Across ${overview?.metrics.totalProducts ?? 0} SKUs`}
+        />
+        <MetricCard
+          icon={Zap}
+          title={selectedBranch ? "Branch Balance" : "Consolidated Balance"}
+          value={formatCurrency(overview?.metrics.totalBalance ?? 0)}
+          helper={selectedBranch ? "Net cash position for branch" : "Net cash position across all branches"}
         />
         <MetricCard
           icon={Building2}
@@ -221,23 +267,7 @@ export function SuperAdminDashboard({ api, session }) {
       <section className="panel p-6 stack gap-5 mt-6">
 
         <div className="between align-center">
-          <SectionHeading title="Sales Trend" text="Revenue progression across all branches." />
-          <div className="cluster gap-3">
-            {trendRange === 'custom' && (
-              <div className="cluster gap-2 align-center">
-                <input type="date" className="input" value={customDates.start} onChange={e => setCustomDates(prev => ({ ...prev, start: e.target.value }))} style={{ padding: '6px 12px', fontSize: '0.85rem' }} />
-                <span>to</span>
-                <input type="date" className="input" value={customDates.end} onChange={e => setCustomDates(prev => ({ ...prev, end: e.target.value }))} style={{ padding: '6px 12px', fontSize: '0.85rem' }} />
-              </div>
-            )}
-            <select className="input" value={trendRange} onChange={e => setTrendRange(e.target.value)} style={{ padding: '6px 12px', fontSize: '0.9rem', width: 'auto' }}>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="annual">Annual</option>
-              <option value="custom">Custom Range</option>
-            </select>
-          </div>
+          <SectionHeading title="Sales Trend" text="Revenue progression across selected timeline." />
         </div>
 
         <div style={{ width: '100%', height: '300px' }}>

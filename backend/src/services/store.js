@@ -259,11 +259,11 @@ async function seedDatabase() {
     await Product.insertMany(products);
   }
 
-  if (saleCount === 0) {
-    const [users, products] = await Promise.all([User.find().lean(), Product.find().lean()]);
-    const sales = buildDemoSales(products, users);
-    await Sale.insertMany(sales);
-  }
+  // if (saleCount === 0) {
+  //   const [users, products] = await Promise.all([User.find().lean(), Product.find().lean()]);
+  //   const sales = buildDemoSales(products, users);
+  //   await Sale.insertMany(sales);
+  // }
 
   const branchCount = await Branch.countDocuments();
   if (branchCount === 0) {
@@ -802,7 +802,7 @@ async function createSale(payload) {
     splitPayments: payload.splitPayments || undefined,
     discount,
     tax,
-      subtotal,
+    subtotal,
     total,
     customerId: payload.customerId || undefined, // Optional customer link
     items: saleItems,
@@ -1026,7 +1026,7 @@ async function getReturns(filters = {}) {
     list = list.filter(r => String(r.entityId) === String(filters.entityId));
   }
 
-return clonePlain(list).sort(
+  return clonePlain(list).sort(
     (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
   );
 }
@@ -1035,13 +1035,13 @@ async function settleReturn(id, amount) {
   if (isDatabaseReady()) {
     const returnDoc = await Return.findById(id);
     if (!returnDoc) throw new Error('Return not found');
-    
+
     if (amount !== undefined) {
       returnDoc.paidAmount = (returnDoc.paidAmount || 0) + Number(amount);
     } else {
       returnDoc.paidAmount = returnDoc.totalAmount;
     }
-    
+
     if (returnDoc.paidAmount >= returnDoc.totalAmount) {
       returnDoc.paymentStatus = 'paid';
       returnDoc.status = 'completed';
@@ -1061,7 +1061,7 @@ async function settleReturn(id, amount) {
   } else {
     ret.paidAmount = ret.totalAmount;
   }
-  
+
   if (ret.paidAmount >= ret.totalAmount) {
     ret.paymentStatus = 'paid';
     ret.status = 'completed';
@@ -1253,7 +1253,7 @@ async function getSalesReport(range = 'weekly', branchFilter = null, customStart
   const products = await getAllProducts();
   const productSalesMap = new Map();
   const validRange = ['daily', 'weekly', 'monthly', 'annual', 'custom'].includes(range) ? range : 'weekly';
-  
+
   let rangeStart, rangeEnd;
   if (validRange === 'custom') {
     rangeStart = customStartDate ? new Date(customStartDate) : new Date(0);
@@ -1374,6 +1374,7 @@ async function getOverviewData(user, branchFilter = null, trendRange = 'monthly'
     sales = sales.filter((sale) => sale.branch === activeBranch);
     users = users.filter((u) => u.branch === activeBranch);
     allReturns = allReturns.filter(r => r.branch === activeBranch);
+    allPurchases = allPurchases.filter(p => p.branch === activeBranch);
   } else if (user && user.role === 'cashier') {
     sales = sales.filter((sale) =>
       String(sale.cashier?.userId || sale.cashierId) === String(user._id)
@@ -1526,20 +1527,20 @@ async function getOverviewData(user, branchFilter = null, trendRange = 'monthly'
 
   let branchMonthlySales = [];
   let allBranches = [];
-  
+
   if (activeBranch) {
     branchMonthlySales = buckets.map((bucket) => {
       const bSales = filteredSalesForTrend.filter(s => {
         const d = new Date(s.createdAt);
         if (validRange === 'daily' || buckets.length > 12) {
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === bucket.key;
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === bucket.key;
         } else if (validRange === 'weekly') {
-            const wDate = startOfWeek(d);
-            return `${wDate.getFullYear()}-${String(wDate.getMonth() + 1).padStart(2, '0')}-${String(wDate.getDate()).padStart(2, '0')}` === bucket.key;
+          const wDate = startOfWeek(d);
+          return `${wDate.getFullYear()}-${String(wDate.getMonth() + 1).padStart(2, '0')}-${String(wDate.getDate()).padStart(2, '0')}` === bucket.key;
         } else if (validRange === 'monthly') {
-            return `${d.getFullYear()}-${d.getMonth() + 1}` === bucket.key;
+          return `${d.getFullYear()}-${d.getMonth() + 1}` === bucket.key;
         } else {
-            return String(d.getFullYear()) === bucket.key;
+          return String(d.getFullYear()) === bucket.key;
         }
       });
       return {
@@ -1553,19 +1554,19 @@ async function getOverviewData(user, branchFilter = null, trendRange = 'monthly'
       const monthData = { month: bucket.label };
       allBranches.forEach(branch => {
         const branchSales = filteredSalesForTrend.filter(s => {
-            if ((s.branch || 'Unknown') !== branch) return false;
-            const d = new Date(s.createdAt);
-            if (validRange === 'daily' || buckets.length > 12 && buckets[0].key.length > 7) {
-                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === bucket.key;
-            } else if (validRange === 'weekly') {
-                const wDate = startOfWeek(d);
-                return `${wDate.getFullYear()}-${String(wDate.getMonth() + 1).padStart(2, '0')}-${String(wDate.getDate()).padStart(2, '0')}` === bucket.key;
-            } else if (validRange === 'monthly' || buckets[0].key.length <= 7) {
-                if (bucket.key.includes('-')) return `${d.getFullYear()}-${d.getMonth() + 1}` === bucket.key;
-                return String(d.getFullYear()) === bucket.key;
-            } else {
-                return String(d.getFullYear()) === bucket.key;
-            }
+          if ((s.branch || 'Unknown') !== branch) return false;
+          const d = new Date(s.createdAt);
+          if (validRange === 'daily' || buckets.length > 12 && buckets[0].key.length > 7) {
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === bucket.key;
+          } else if (validRange === 'weekly') {
+            const wDate = startOfWeek(d);
+            return `${wDate.getFullYear()}-${String(wDate.getMonth() + 1).padStart(2, '0')}-${String(wDate.getDate()).padStart(2, '0')}` === bucket.key;
+          } else if (validRange === 'monthly' || buckets[0].key.length <= 7) {
+            if (bucket.key.includes('-')) return `${d.getFullYear()}-${d.getMonth() + 1}` === bucket.key;
+            return String(d.getFullYear()) === bucket.key;
+          } else {
+            return String(d.getFullYear()) === bucket.key;
+          }
         });
         monthData[branch] = formatCurrencyAmount(branchSales.reduce((sum, s) => sum + Number(s.total), 0));
       });
@@ -1577,17 +1578,30 @@ async function getOverviewData(user, branchFilter = null, trendRange = 'monthly'
     ...sale,
     cashierName: sale.cashier?.name || 'Unknown cashier',
   }));
-  
+
   const recentPurchases = allPurchases.slice(0, 50).map(p => ({
     ...p,
     supplierName: p.supplier?.name || p.supplierName || 'Unknown',
     _id: String(p._id)
   }));
-  
-  const recentCustomerReturns = allReturns.filter(r => r.type === 'customer').slice(0, 50).map(r => ({...r, _id: String(r._id)}));
-  const recentSupplierReturns = allReturns.filter(r => r.type === 'supplier').slice(0, 50).map(r => ({...r, _id: String(r._id)}));
-  const recentCustomerSettlements = allCustomerInvoices.filter(i => i.status === 'PAID' || i.status === 'PARTIAL').slice(0, 50).map(i => ({...i, _id: String(i._id)}));
-  const recentSupplierSettlements = allSupplierInvoices.filter(i => i.status === 'PAID' || i.status === 'PARTIAL').slice(0, 50).map(i => ({...i, _id: String(i._id)}));
+
+  const recentCustomerReturns = allReturns.filter(r => r.type === 'customer').slice(0, 50).map(r => ({ ...r, _id: String(r._id) }));
+  const recentSupplierReturns = allReturns.filter(r => r.type === 'supplier').slice(0, 50).map(r => ({ ...r, _id: String(r._id) }));
+  const recentCustomerSettlements = allCustomerInvoices.filter(i => i.status === 'PAID' || i.status === 'PARTIAL').slice(0, 50).map(i => ({ ...i, _id: String(i._id) }));
+  const recentSupplierSettlements = allSupplierInvoices.filter(i => i.status === 'PAID' || i.status === 'PARTIAL').slice(0, 50).map(i => ({ ...i, _id: String(i._id) }));
+
+  const salesTotal = sales.reduce((sum, s) => sum + Number(s.total), 0);
+  const customerInvoiceBalances = allCustomerInvoices.reduce((sum, inv) => sum + Number(inv.balanceAmount), 0);
+  const cashFromSales = salesTotal - customerInvoiceBalances;
+
+  const purchasesTotal = allPurchases.reduce((sum, p) => sum + Number(p.total), 0);
+  const supplierInvoiceBalances = allSupplierInvoices.reduce((sum, inv) => sum + Number(inv.balanceAmount), 0);
+  const cashToSuppliers = purchasesTotal - supplierInvoiceBalances;
+
+  const customerReturnsCash = allReturns.filter(r => r.type === 'customer').reduce((sum, r) => sum + Number(r.paidAmount), 0);
+  const supplierReturnsCash = allReturns.filter(r => r.type === 'supplier').reduce((sum, r) => sum + Number(r.paidAmount), 0);
+
+  const totalBalance = formatCurrencyAmount(cashFromSales + supplierReturnsCash - cashToSuppliers - customerReturnsCash);
 
   return {
     user: sanitizeUser(user),
@@ -1607,6 +1621,7 @@ async function getOverviewData(user, branchFilter = null, trendRange = 'monthly'
       revenueYearly: formatCurrencyAmount(
         salesThisYear.reduce((sum, sale) => sum + Number(sale.total), 0),
       ),
+      totalBalance,
       activeUsers: users.length,
     },
     monthlySales: branchMonthlySales,
@@ -2123,9 +2138,9 @@ async function saveBranch(payload) {
         if (original.manager) {
           await User.updateMany({ name: original.manager }, { branch: 'Unassigned' });
         }
-        if (branchData.manager) {
-          await User.updateMany({ name: branchData.manager }, { branch: branchData.name });
-        }
+      }
+      if (branchData.manager) {
+        await User.updateMany({ name: branchData.manager }, { branch: branchData.name });
       }
 
       return updated;
