@@ -74,26 +74,6 @@ export function SuperAdminDashboard({ api, session }) {
       <div className="between align-center panel p-4 glass-panel" style={{ borderRadius: '16px' }}>
         <h2 className="font-strong m-0">Operations Command</h2>
         <div className="cluster gap-3 wrap">
-          {trendRange === 'custom' && (
-            <div className="cluster gap-2 align-center">
-              <input type="date" className="input" value={customDates.start} onChange={e => setCustomDates(prev => ({ ...prev, start: e.target.value }))} style={{ padding: '8px 12px', fontSize: '0.85rem' }} />
-              <span className="muted small">to</span>
-              <input type="date" className="input" value={customDates.end} onChange={e => setCustomDates(prev => ({ ...prev, end: e.target.value }))} style={{ padding: '8px 12px', fontSize: '0.85rem' }} />
-            </div>
-          )}
-          <select 
-            className="input" 
-            value={trendRange} 
-            onChange={e => setTrendRange(e.target.value)} 
-            style={{ padding: '8px 12px', fontSize: '0.9rem', width: '160px', backgroundColor: 'var(--panel-strong)' }}
-          >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="annual">Annual</option>
-            <option value="custom">Custom Range</option>
-          </select>
-
           <select 
             className="input" 
             value={selectedBranch} 
@@ -268,6 +248,28 @@ export function SuperAdminDashboard({ api, session }) {
 
         <div className="between align-center">
           <SectionHeading title="Sales Trend" text="Revenue progression across selected timeline." />
+          
+          <div className="cluster gap-3 wrap">
+            {trendRange === 'custom' && (
+              <div className="cluster gap-2 align-center">
+                <input type="date" className="input" value={customDates.start} onChange={e => setCustomDates(prev => ({ ...prev, start: e.target.value }))} style={{ padding: '8px 12px', fontSize: '0.85rem' }} />
+                <span className="muted small">to</span>
+                <input type="date" className="input" value={customDates.end} onChange={e => setCustomDates(prev => ({ ...prev, end: e.target.value }))} style={{ padding: '8px 12px', fontSize: '0.85rem' }} />
+              </div>
+            )}
+            <select 
+              className="input" 
+              value={trendRange} 
+              onChange={e => setTrendRange(e.target.value)} 
+              style={{ padding: '8px 12px', fontSize: '0.9rem', width: '160px', backgroundColor: 'var(--panel-strong)' }}
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="annual">Annual</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
         </div>
 
         <div style={{ width: '100%', height: '300px' }}>
