@@ -791,7 +791,11 @@ async function createSale(payload) {
   const discount = formatCurrencyAmount(Number(payload.discount || 0));
   const tax = 0;
   const total = formatCurrencyAmount(subtotal - discount);
+  
+  console.log("createSale: Generating invoice number...");
   const invoiceNumber = await generateInvoiceNumber();
+  console.log("createSale: Invoice number generated:", invoiceNumber);
+  
   const salePayload = {
     invoiceNumber,
     customerName: String(payload.customerName || 'Walk-in customer').trim(),
@@ -817,14 +821,18 @@ async function createSale(payload) {
   };
 
   if (isDatabaseReady()) {
+    console.log("createSale: Creating sale in DB...");
     const sale = await Sale.create(salePayload);
+    console.log("createSale: Sale created in DB.");
 
+    console.log("createSale: Updating branch stock...");
     for (const item of saleItems) {
       await BranchStock.findOneAndUpdate(
         { branch: branchName, productId: item.productId },
         { $inc: { quantityInStock: -item.quantity } }
       );
     }
+    console.log("createSale: Branch stock updated.");
 
     // Create Invoice if Credit or has Credit component in split
     let creditAmount = 0;
@@ -1786,13 +1794,64 @@ async function deleteUser(userId) {
 }
 
 async function getSales(filters = {}) {
+  if (isDatabaseReady()) {
+    const query = {};
+    const now = new Date();
+
+    if (filters.date === 'today') {
+      const start = new Date(); start.setHours(0,0,0,0);
+      const end = new Date(); end.setHours(23,59,59,999);
+      query.createdAt = { $gte: start, $lte: end };
+    } else if (filters.date === 'this-week') {
+      query.createdAt = { $gte: startOfWeek(now) };
+    } else if (filters.date === 'this-month') {
+      const start = startOfMonth(now);
+      query.createdAt = { $gte: start };
+    }
+
+    if (filters.cashierId) {
+      query['cashier.userId'] = filters.cashierId;
+    }
+    
+    if (filters.customerId) {
+      query.customerId = filters.customerId;
+    }
+
+    if (filters.query) {
+      const q = String(filters.query).trim();
+      query.$or = [
+        { invoiceNumber: new RegExp(q, 'i') },
+        { customerName: new RegExp(q, 'i') }
+      ];
+    }
+
+    const sales = await Sale.find(query).sort({ createdAt: -1 }).lean();
+
+    const invoiceNos = sales.map(s => s.invoiceNumber);
+    const invoices = await CustomerInvoice.find({ invoiceNo: { $in: invoiceNos } }).lean();
+    const invoiceMap = new Map(invoices.map(i => [i.invoiceNo, i]));
+
+    return sales.map((sale) => {
+      const inv = invoiceMap.get(sale.invoiceNumber);
+      return {
+        ...sale,
+        _id: String(sale._id),
+        balanceAmount: inv ? inv.balanceAmount : (sale.paymentMethod === 'credit' ? sale.total : 0),
+        status: inv ? inv.status : (sale.paymentMethod === 'credit' ? 'UNPAID' : 'PAID'),
+        items: sale.items.map((item) => ({
+          ...item,
+          productId: String(item.productId),
+        })),
+      };
+    });
+  }
+
   const sales = await getAllSales();
 
   return sales.filter((sale) => {
     const saleDate = new Date(sale.createdAt);
     const now = new Date();
 
-    // Date filters
     if (filters.date === 'today') {
       if (!sameDay(sale.createdAt, now)) return false;
     } else if (filters.date === 'this-week') {
@@ -1802,12 +1861,14 @@ async function getSales(filters = {}) {
       if (saleDate.getMonth() !== now.getMonth() || saleDate.getFullYear() !== now.getFullYear()) return false;
     }
 
-    // Cashier filter
     if (filters.cashierId && String(sale.cashier?.userId) !== String(filters.cashierId)) {
       return false;
     }
 
-    // Query filter (invoice number or customer name)
+    if (filters.customerId && String(sale.customerId) !== String(filters.customerId)) {
+      return false;
+    }
+
     if (filters.query) {
       const q = String(filters.query).toLowerCase();
       const invNo = String(sale.invoiceNumber || '').toLowerCase();

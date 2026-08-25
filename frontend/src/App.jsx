@@ -829,13 +829,17 @@ function App() {
       };
 
       if (!navigator.onLine) {
+        const localId = Date.now();
+        const offlineSale = { ...saleData, localId, isOffline: true };
         await saveSaleOffline(saleData);
         setProducts(prev => prev.map(p => {
           const item = cart.find(c => c.productId === p._id);
           return item ? { ...p, quantityInStock: Math.max(0, p.quantityInStock - item.quantity) } : p;
         }));
         applyOptimisticUpdate(saleData);
+        const receivedAmt = checkoutForm.receivedAmount || 0;
         resetCartAndForm();
+        printReceipt(offlineSale, session.user, receivedAmt, company);
         setNotice({ type: 'success', text: 'You are offline. Sale saved locally and will sync when internet returns.' })
       } else {
         try {
@@ -847,14 +851,19 @@ function App() {
           setNotice({ type: 'success', text: 'Sale completed.' })
         } catch (error) {
           if (!error.response) { // Network error like connection drop
+            console.error("Checkout fell into offline block due to error:", error);
+            const localId = Date.now();
+            const offlineSale = { ...saleData, localId, isOffline: true };
             await saveSaleOffline(saleData);
             setProducts(prev => prev.map(p => {
               const item = cart.find(c => c.productId === p._id);
               return item ? { ...p, quantityInStock: Math.max(0, p.quantityInStock - item.quantity) } : p;
             }));
             applyOptimisticUpdate(saleData);
+            const receivedAmt = checkoutForm.receivedAmount || 0;
             resetCartAndForm();
-            setNotice({ type: 'warning', text: 'Network issue detected. Sale saved offline.' })
+            printReceipt(offlineSale, session.user, receivedAmt, company);
+            setNotice({ type: 'warning', text: `Network issue or bug detected (${error.message}). Sale saved offline.` })
           } else {
             handleRequestError(error, 'Checkout failed.')
           }

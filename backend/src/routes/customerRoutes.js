@@ -15,7 +15,7 @@ const { requireAuth } = require('../middleware/auth');
 // ==========================================
 // GET /api/customers
 router.get('/', requireAuth, async (req, res) => {
-  const customers = await Customer.find();
+  const customers = await Customer.find().sort({ _id: -1 }).lean();
   res.json(customers);
 });
 

@@ -84,11 +84,7 @@ export const exportToCSV = (data, fileName) => {
   document.body.removeChild(link)
 }
 
-export const printReceipt = (sale, user, receivedAmount = 0, company = null) => {
-  const receiptWindow = window.open('', '_blank', 'width=450,height=800')
-
-  if (!receiptWindow) return
-
+export const getReceiptHTML = (sale, user, receivedAmount = 0, company = null) => {
   const logoUrl = company?.logo ? `${getBaseUrl()}${company.logo}` : ''
   const companyName = company?.name || 'NILMA Alliance (Pvt) Ltd'
   const companyTagline = company?.tagline || 'Excellence Across Diverse Industries'
@@ -132,7 +128,7 @@ export const printReceipt = (sale, user, receivedAmount = 0, company = null) => 
   const balance = Math.max(0, (Number(receivedAmount) || 0) - sale.total)
   const subtotal = sale.items.reduce((sum, i) => sum + (Number(i.lineTotal) || 0), 0)
 
-  receiptWindow.document.write(`
+  return `
     <html>
       <head>
         <title>Receipt - ${sale.invoiceNumber}</title>
@@ -161,14 +157,14 @@ export const printReceipt = (sale, user, receivedAmount = 0, company = null) => 
 
         <div style="font-size: 11px; margin-bottom: 6px; font-weight: 700;">
           <div style="display: flex; justify-content: space-between;">
-            <span>DATE: ${new Date(sale.createdAt).toLocaleDateString()}</span>
-            <span>TIME: ${new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            <span>DATE: ${new Date(sale.createdAt || sale.localId || Date.now()).toLocaleDateString()}</span>
+            <span>TIME: ${new Date(sale.createdAt || sale.localId || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
           <div style="display: flex; justify-content: space-between; margin-top: 2px;">
-            <span>BILL: ${sale.invoiceNumber}</span>
-            <span>CASHIER: ${user.name.toUpperCase()}</span>
+            <span>BILL: ${sale.invoiceNumber || sale.localId || 'N/A'}</span>
+            <span>CASHIER: ${(user?.name || 'Cashier').toUpperCase()}</span>
           </div>
-          <div style="margin-top: 2px; border-bottom: 1px solid #000; padding-bottom: 2px;">CUSTOMER: ${sale.customerName.toUpperCase()}</div>
+          <div style="margin-top: 2px; border-bottom: 1px solid #000; padding-bottom: 2px;">CUSTOMER: ${(sale.customerName || 'Walk-in customer').toUpperCase()}</div>
           ${sale.loyaltyCard ? `<div style="margin-top: 2px; border-bottom: 1px solid #000; padding-bottom: 2px;">LOYALTY CARD: ${sale.loyaltyCard.toUpperCase()}</div>` : ''}
         </div>
 
@@ -212,7 +208,16 @@ export const printReceipt = (sale, user, receivedAmount = 0, company = null) => 
                 <span>PAYMENT (${p.method.toUpperCase()}):</span>
                 <span>${Number(p.amount).toFixed(2)}</span>
               </div>
-            `).join('') : `
+            `).join('') : sale.paymentMethod === 'credit' ? `
+              <div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 12px;">
+                <span>PAYMENT (CREDIT):</span>
+                <span>0.00</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 14px;">
+                <span>AMOUNT DUE:</span>
+                <span>${Number(sale.total).toFixed(2)}</span>
+              </div>
+            ` : `
               <div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 12px;">
                 <span>PAYMENT (${sale.paymentMethod.toUpperCase()}):</span>
                 <span>${Number(receivedAmount || sale.total).toFixed(2)}</span>
@@ -249,8 +254,20 @@ export const printReceipt = (sale, user, receivedAmount = 0, company = null) => 
         </script>
       </body>
     </html>
-  `)
-  receiptWindow.document.close()
+  `
+}
+
+export const printReceipt = (sale, user, receivedAmount = 0, company = null) => {
+  try {
+    const receiptWindow = window.open('', '_blank', 'width=450,height=800')
+    if (!receiptWindow) return
+    
+    const html = getReceiptHTML(sale, user, receivedAmount, company)
+    receiptWindow.document.write(html)
+    receiptWindow.document.close()
+  } catch (error) {
+    console.error("Error generating receipt preview or printing:", error)
+  }
 }
 
 export const printSettlementReceipt = (payment, user, company = null) => {
