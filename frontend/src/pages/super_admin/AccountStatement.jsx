@@ -30,11 +30,12 @@ import {
   Receipt,
   Filter,
   RefreshCw,
-  MoreVertical
+  MoreVertical,
+  X
 } from 'lucide-react'
-import { authConfig, formatCurrency, formatDate, getBaseUrl } from '../../utils'
+import { authConfig, formatCurrency, formatDate, getBaseUrl, printReceipt, getReceiptHTML } from '../../utils'
 import { SectionHeading } from '../../components/SectionHeading'
-
+import { getOfflineSales } from '../../utils/offlineSync'
 export default function AccountStatement({ api, session, onNotice, company }) {
   const { type, id } = useParams()
   const navigate = useNavigate()
@@ -53,6 +54,9 @@ export default function AccountStatement({ api, session, onNotice, company }) {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showAllocations, setShowAllocations] = useState(null) // ID of payment to show allocations for
+  const [salesRecords, setSalesRecords] = useState([])
+  const [showBillsModal, setShowBillsModal] = useState(false)
+  const [previewSale, setPreviewSale] = useState(null)
 
   // Date range filters for user friendliness
   const [dateRange, setDateRange] = useState({
@@ -70,14 +74,22 @@ export default function AccountStatement({ api, session, onNotice, company }) {
     setLoading(true)
     try {
       const config = authConfig(session.token)
-      const [entityRes, invoicesRes, paymentsRes, returnsRes] = await Promise.all([
-        api.get(`/${type}s/${id}`, config),
-        api.get(`/${type === 'customer' ? 'customer-invoices/customer' : 'supplier-invoices/supplier'}/${id}`, config),
-        api.get(`/${type === 'customer' ? 'payments' : 'supplier-payments'}?${type}Id=${id}`, config),
-        api.get(`/returns?entityId=${id}`, config)
+      let entityData = null;
+      try {
+        const entityRes = await api.get(`/${type}s/${id}`, config);
+        entityData = entityRes.data;
+      } catch (err) {
+        throw err;
+      }
+
+      const [invoicesRes, paymentsRes, returnsRes, salesRes] = await Promise.all([
+        api.get(`/${type === 'customer' ? 'customer-invoices/customer' : 'supplier-invoices/supplier'}/${id}`, config).catch(() => ({ data: [] })),
+        api.get(`/${type === 'customer' ? 'payments' : 'supplier-payments'}?${type}Id=${id}`, config).catch(() => ({ data: [] })),
+        api.get(`/returns?entityId=${id}`, config).catch(() => ({ data: [] })),
+        api.get(`/sales?${type}Id=${id}`, config).catch(() => ({ data: [] }))
       ])
 
-      const { getOfflineSettlements, getOfflineReturns } = await import('../../utils/offlineSync');
+      const { getOfflineSettlements, getOfflineReturns, getOfflineSales } = await import('../../utils/offlineSync');
       const pendingSettlements = await getOfflineSettlements();
       const offlineSettlements = (pendingSettlements || [])
         .filter(s => (String(s.customerId) === String(id) || String(s.supplierId) === String(id)))
@@ -105,11 +117,17 @@ export default function AccountStatement({ api, session, onNotice, company }) {
           status: 'COMPLETED',
           isOffline: true
         }));
+      
+      const offlineSales = await getOfflineSales();
 
-      setEntity(entityRes.data)
+      setEntity(entityData)
       setInvoices(invoicesRes.data || [])
       setPayments([...(paymentsRes.data || []), ...offlineSettlements])
       setReturns([...(returnsRes.data || []), ...offlineReturns])
+      
+      const salesArray = salesRes.data.sales ? salesRes.data.sales : (Array.isArray(salesRes.data) ? salesRes.data : []);
+      const combinedSales = [...salesArray, ...offlineSales.filter(s => String(s.customerId) === String(id))];
+      setSalesRecords(combinedSales.sort((a, b) => new Date(b.createdAt || b.localId) - new Date(a.createdAt || a.localId)));
     } catch (err) {
       onNotice?.({ type: 'error', text: 'Failed to load account data.' })
     } finally {
@@ -198,7 +216,17 @@ export default function AccountStatement({ api, session, onNotice, company }) {
   }, [invoices, payments, returns])
 
   const handlePrint = () => {
-    window.print()
+    import('html2pdf.js').then((html2pdf) => {
+      const element = document.querySelector('.document-container');
+      const opt = {
+        margin: 0.5,
+        filename: `${entity.name}_Statement.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+      html2pdf.default().set(opt).from(element).save();
+    });
   }
 
   if (loading) return (
@@ -245,12 +273,12 @@ export default function AccountStatement({ api, session, onNotice, company }) {
 
         <div className="cluster gap-3">
           <button className="btn btn-outline" onClick={handlePrint}>
-            <Printer size={16} />
+            <Download size={16} />
             Download PDF
           </button>
-          <button className="btn btn-primary shadow-lg" onClick={() => navigate('/payments')}>
-            <Plus size={16} />
-            Record Payment
+          <button className="btn btn-primary shadow-lg" onClick={() => setShowBillsModal(true)}>
+            <Printer size={16} />
+            Print Previous Bills
           </button>
         </div>
       </div>
@@ -437,6 +465,74 @@ export default function AccountStatement({ api, session, onNotice, company }) {
           </div>
         </div>
       </div>
+
+      {showBillsModal && (
+        <div className="modal-backdrop fade-in" onClick={() => { setShowBillsModal(false); setPreviewSale(null); }} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div className="modal-content scale-in panel glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%', borderRadius: '12px' }}>
+            <div className="modal-header between" style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-color)' }}>
+              <h2 className="cluster gap-2">
+                <Receipt size={20} className="accent-text" />
+                {previewSale ? `Preview Bill: ${previewSale.invoiceNumber || previewSale.localId}` : 'Previous Bills & Invoices'}
+              </h2>
+              <button className="icon-btn ghost" onClick={() => { setShowBillsModal(false); setPreviewSale(null); }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="modal-body p-6" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+              {previewSale ? (
+                <div className="stack gap-4 h-full">
+                  <div className="between wrap-row" style={{ paddingBottom: '12px', borderBottom: '1px solid var(--border-color)' }}>
+                    <button className="btn btn-ghost" onClick={() => setPreviewSale(null)}>
+                      <ArrowLeft size={16} /> Back to List
+                    </button>
+                    <button className="btn btn-primary" onClick={() => printReceipt(previewSale, session.user, 0, company)}>
+                      <Printer size={16} /> Print Document
+                    </button>
+                  </div>
+                  <div className="flex-1" style={{ minHeight: '500px', height: '500px', background: '#f9f9f9', borderRadius: '8px', padding: '16px', display: 'flex', justifyContent: 'center' }}>
+                    <iframe 
+                      title="Bill Preview"
+                      srcDoc={getReceiptHTML(previewSale, session.user, 0, company).replace(/<script>[\s\S]*?<\/script>/, '')} 
+                      style={{ width: '350px', height: '100%', minHeight: '480px', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} 
+                    />
+                  </div>
+                </div>
+              ) : salesRecords.length === 0 ? (
+                <div className="p-12 text-center muted stack align-center gap-4">
+                  <Receipt size={48} opacity={0.2} />
+                  <p>No bills found for this customer.</p>
+                </div>
+              ) : (
+                <div className="stack gap-4">
+                  {salesRecords.map(sale => (
+                    <div key={sale._id || sale.localId} className="panel p-4 glass-panel between align-center table-row-hover">
+                      <div className="stack gap-1">
+                        <strong className="font-strong">{sale.invoiceNumber || `INVC-${sale.localId}`}</strong>
+                        <div className="cluster gap-3 muted small">
+                          <span className="cluster gap-1"><Calendar size={12} /> {formatDate(sale.createdAt || sale.localId)}</span>
+                          <span>Items: {sale.items?.length || 0}</span>
+                        </div>
+                      </div>
+                      <div className="cluster gap-6">
+                        <strong className="accent-text" style={{ fontSize: '1.1rem' }}>{formatCurrency(sale.total || 0)}</strong>
+                        <button className="btn btn-outline sm" onClick={() => setPreviewSale(sale)}>
+                          <Eye size={14} />
+                          Preview
+                        </button>
+                        <button className="btn btn-primary sm" onClick={() => printReceipt(sale, session.user, 0, company)}>
+                          <Printer size={14} />
+                          Print
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .document-container {
