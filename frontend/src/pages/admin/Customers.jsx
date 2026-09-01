@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { SectionHeading } from '../../components/SectionHeading'
 import { authConfig, readErrorMessage, formatCurrency } from '../../utils'
+import { saveCustomerOffline, getOfflineCustomers } from '../../utils/offlineSync'
 import { Pagination } from '../../components/Pagination'
 
 export default function Customers({ api, session, onNotice }) {
@@ -46,10 +47,22 @@ export default function Customers({ api, session, onNotice }) {
   async function fetchCustomers() {
     setLoading(true)
     try {
+      const offlineCustomers = await getOfflineCustomers();
+      if (!navigator.onLine) {
+        // Fallback to cache if possible, plus pending ones
+        // But Customers page doesn't have localforage cache logic for its own component state,
+        // so we just show pending ones if online request fails.
+      }
       const response = await api.get('/customers', authConfig(session.token))
-      setCustomers(Array.isArray(response.data) ? response.data : [])
+      const onlineCustomers = Array.isArray(response.data) ? response.data : [];
+      setCustomers([...offlineCustomers, ...onlineCustomers])
     } catch (err) {
-      onNotice({ type: 'error', text: 'Failed to fetch customers.' })
+      if (!navigator.onLine) {
+        const offlineCustomers = await getOfflineCustomers();
+        setCustomers(offlineCustomers);
+      } else {
+        onNotice({ type: 'error', text: 'Failed to fetch customers.' })
+      }
     } finally {
       setLoading(false)
     }
@@ -84,8 +97,14 @@ export default function Customers({ api, session, onNotice }) {
         await api.patch(`/customers/${editingId}`, formData, authConfig(session.token))
         onNotice({ type: 'success', text: 'Customer updated.' })
       } else {
-        await api.post('/customers', formData, authConfig(session.token))
-        onNotice({ type: 'success', text: 'Customer registered.' })
+        if (!navigator.onLine) {
+          const offlineCustomer = { ...formData, _id: `OFFLINE-CUST-${Date.now()}` };
+          await saveCustomerOffline(offlineCustomer);
+          onNotice({ type: 'warning', text: 'You are offline. Customer saved locally and will sync when online.' });
+        } else {
+          await api.post('/customers', formData, authConfig(session.token))
+          onNotice({ type: 'success', text: 'Customer registered.' })
+        }
       }
       setShowForm(false)
       setEditingId(null)

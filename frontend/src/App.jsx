@@ -6,7 +6,7 @@ import {
 } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { saveSaleOffline, syncOfflineSales, syncOfflineReturns, syncOfflineSettlements, cacheLoginCredentials, attemptOfflineLogin } from './utils/offlineSync';
+import { saveSaleOffline, syncOfflineSales, syncOfflineReturns, syncOfflineSettlements, syncOfflineCustomers, cacheLoginCredentials, attemptOfflineLogin, getOfflineCustomers } from './utils/offlineSync';
 import localforage from 'localforage';
 import _BarcodeReader from 'react-barcode-reader'
 
@@ -124,11 +124,13 @@ function App() {
     syncOfflineSales()
     syncOfflineReturns()
     syncOfflineSettlements()
+    syncOfflineCustomers()
     const handleOnline = async () => {
       setIsOnline(true)
       await syncOfflineSales()
       await syncOfflineReturns()
       await syncOfflineSettlements()
+      await syncOfflineCustomers()
       alert("Internet connection restored. Syncing offline data...")
       if (session?.token) {
         refreshCoreData()
@@ -283,7 +285,8 @@ function App() {
         setOverview(results[0].data)
         setProducts(results[1].data.products || [])
         setSales(results[2].data.sales || [])
-        setCustomers(results[3].data)
+        const offlineCustomers = await getOfflineCustomers()
+        setCustomers([...offlineCustomers, ...(results[3].data || [])])
 
         // Cache the fetched data for offline fallback
         try {
@@ -311,7 +314,8 @@ function App() {
           if (cachedOverview) setOverview(cachedOverview);
           if (cachedProducts) setProducts(cachedProducts);
           if (cachedSales) setSales(cachedSales);
-          if (cachedCustomers) setCustomers(cachedCustomers);
+          const offlineCusts = await getOfflineCustomers();
+          if (cachedCustomers) setCustomers([...offlineCusts, ...cachedCustomers]);
         } catch (e) {
           console.error("Error loading offline cache", e);
         }
@@ -387,7 +391,8 @@ function App() {
       setOverview(overviewResponse.data)
       setProducts(freshProducts)
       setSales(salesResponse.data.sales || [])
-      setCustomers(customersResponse.data || [])
+      const offlineCusts = await getOfflineCustomers()
+      setCustomers([...offlineCusts, ...(customersResponse.data || [])])
       setCompany(companyResponse.data)
       return freshProducts;
     } catch (err) {
@@ -452,7 +457,8 @@ function App() {
           const cachedCustomers = await localforage.getItem('cachedCustomers');
           if (cachedOverview) setOverview(cachedOverview);
           if (cachedProducts) setProducts(cachedProducts);
-          if (cachedCustomers) setCustomers(cachedCustomers);
+          const offlineCusts = await getOfflineCustomers();
+          if (cachedCustomers) setCustomers([...offlineCusts, ...cachedCustomers]);
         } catch (e) { }
       } else {
         setNotice({ type: 'error', text: 'Incorrect credentials or user not cached for offline login.' })

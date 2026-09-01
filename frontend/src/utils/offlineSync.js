@@ -262,3 +262,66 @@ export const syncOfflineSettlements = async () => {
         console.error("Error during settlements sync process:", error);
     }
 };
+
+export const saveCustomerOffline = async (customerData) => {
+    try {
+        const pendingCustomers = await localforage.getItem('pendingCustomers') || [];
+        const offlineCustomer = { ...customerData, localId: Date.now(), isOffline: true };
+        pendingCustomers.push(offlineCustomer);
+        await localforage.setItem('pendingCustomers', pendingCustomers);
+        return true;
+    } catch (error) {
+        console.error("Error saving customer offline:", error);
+        return false;
+    }
+};
+
+export const getOfflineCustomers = async () => {
+    try {
+        return await localforage.getItem('pendingCustomers') || [];
+    } catch (error) {
+        console.error("Error fetching offline customers:", error);
+        return [];
+    }
+};
+
+export const syncOfflineCustomers = async () => {
+    if (!navigator.onLine) return;
+
+    try {
+        const pendingCustomers = await localforage.getItem('pendingCustomers');
+        if (pendingCustomers && pendingCustomers.length > 0) {
+            console.log(`Attempting to sync ${pendingCustomers.length} offline customers...`);
+            const successfulSyncs = [];
+            for (const customer of pendingCustomers) {
+                try {
+                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                    const sessionString = sessionStorage.getItem('ims-session');
+                    let token = null;
+                    if (sessionString) {
+                        try {
+                            const sessionData = JSON.parse(sessionString);
+                            token = sessionData.token;
+                        } catch (e) { }
+                    }
+                    const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+                    await axios.post(`${API_URL}/customers`, customer, config);
+                    successfulSyncs.push(customer.localId);
+                } catch (error) {
+                    console.error(`Failed to sync customer ${customer.localId}:`, error);
+                    if (error.response && (error.response.status === 400 || error.response.status === 409)) {
+                        console.warn(`Discarding un-syncable customer ${customer.localId} due to permanent backend error`);
+                        successfulSyncs.push(customer.localId);
+                    }
+                }
+            }
+            const remainingCustomers = pendingCustomers.filter(
+                customer => !successfulSyncs.includes(customer.localId)
+            );
+            await localforage.setItem('pendingCustomers', remainingCustomers);
+            console.log("Customers sync complete!");
+        }
+    } catch (error) {
+        console.error("Error during customers sync process:", error);
+    }
+};
