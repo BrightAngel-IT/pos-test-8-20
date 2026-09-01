@@ -25,6 +25,7 @@ import {
 import { SectionHeading } from '../../components/SectionHeading'
 import { useNavigate } from 'react-router-dom'
 import { authConfig, readErrorMessage } from '../../utils'
+import { getOfflineUsers } from '../../utils/offlineSync'
 import { Pagination } from '../../components/Pagination'
 
 export default function StaffManagement({ api, session, onNotice, setEditingStaff }) {
@@ -43,8 +44,15 @@ export default function StaffManagement({ api, session, onNotice, setEditingStaf
   async function fetchStaff() {
     setLoading(true)
     try {
-      const response = await api.get('/users', authConfig(session.token))
-      setStaff(Array.isArray(response.data) ? response.data : [])
+      const offlineUsers = await getOfflineUsers()
+      let onlineUsers = []
+      if (navigator.onLine) {
+        try {
+          const response = await api.get('/users', authConfig(session.token))
+          onlineUsers = Array.isArray(response.data) ? response.data : []
+        } catch (e) {}
+      }
+      setStaff([...offlineUsers, ...onlineUsers])
     } catch (err) {
       onNotice({ type: 'error', text: 'Authorization sync failed. Check connection.' })
     } finally {

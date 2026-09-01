@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { authConfig, readErrorMessage } from '../../utils'
+import { saveUserOffline, getOfflineBranches } from '../../utils/offlineSync'
 
 export default function StaffForm({ api, session, onNotice, editingStaff, setEditingStaff }) {
   const navigate = useNavigate()
@@ -50,8 +51,15 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
 
   async function fetchBranches() {
     try {
-      const res = await api.get('/branches', authConfig(session.token))
-      setBranches(res.data)
+      const offlineBranches = await getOfflineBranches()
+      let onlineBranches = []
+      if (navigator.onLine) {
+        try {
+          const res = await api.get('/branches', authConfig(session.token))
+          onlineBranches = res.data
+        } catch(e) {}
+      }
+      setBranches([...offlineBranches, ...onlineBranches])
     } catch (err) {
       console.error('Failed to load branches', err)
     }
@@ -69,13 +77,27 @@ export default function StaffForm({ api, session, onNotice, editingStaff, setEdi
       if (editingStaff) {
         payload._id = editingStaff._id
         if (!payload.password) delete payload.password
+        await api.post('/users', payload, authConfig(session.token))
+        onNotice({
+          type: 'success',
+          text: 'Security profile updated successfully.'
+        })
+      } else {
+        if (!navigator.onLine) {
+          const offlineUser = { ...payload, _id: `OFFLINE-USER-${Date.now()}` }
+          await saveUserOffline(offlineUser)
+          onNotice({
+            type: 'warning',
+            text: 'You are offline. Security profile saved locally and will sync when online.'
+          })
+        } else {
+          await api.post('/users', payload, authConfig(session.token))
+          onNotice({
+            type: 'success',
+            text: 'New operative successfully onboarded.'
+          })
+        }
       }
-
-      await api.post('/users', payload, authConfig(session.token))
-      onNotice({
-        type: 'success',
-        text: editingStaff ? 'Security profile updated successfully.' : 'New operative successfully onboarded.'
-      })
 
       handleBack()
     } catch (err) {

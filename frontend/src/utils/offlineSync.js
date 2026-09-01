@@ -325,3 +325,129 @@ export const syncOfflineCustomers = async () => {
         console.error("Error during customers sync process:", error);
     }
 };
+
+export const saveBranchOffline = async (branchData) => {
+    try {
+        const pendingBranches = await localforage.getItem('pendingBranches') || [];
+        const offlineBranch = { ...branchData, localId: Date.now(), isOffline: true };
+        pendingBranches.push(offlineBranch);
+        await localforage.setItem('pendingBranches', pendingBranches);
+        return true;
+    } catch (error) {
+        console.error("Error saving branch offline:", error);
+        return false;
+    }
+};
+
+export const getOfflineBranches = async () => {
+    try {
+        return await localforage.getItem('pendingBranches') || [];
+    } catch (error) {
+        console.error("Error fetching offline branches:", error);
+        return [];
+    }
+};
+
+export const syncOfflineBranches = async () => {
+    if (!navigator.onLine) return;
+
+    try {
+        const pendingBranches = await localforage.getItem('pendingBranches');
+        if (pendingBranches && pendingBranches.length > 0) {
+            console.log(`Attempting to sync ${pendingBranches.length} offline branches...`);
+            const successfulSyncs = [];
+            for (const branch of pendingBranches) {
+                try {
+                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                    const sessionString = sessionStorage.getItem('ims-session');
+                    let token = null;
+                    if (sessionString) {
+                        try {
+                            const sessionData = JSON.parse(sessionString);
+                            token = sessionData.token;
+                        } catch (e) { }
+                    }
+                    const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+                    await axios.post(`${API_URL}/branches`, branch, config);
+                    successfulSyncs.push(branch.localId);
+                } catch (error) {
+                    console.error(`Failed to sync branch ${branch.localId}:`, error);
+                    if (error.response && (error.response.status === 400 || error.response.status === 409)) {
+                        console.warn(`Discarding un-syncable branch ${branch.localId}`);
+                        successfulSyncs.push(branch.localId);
+                    }
+                }
+            }
+            const remainingBranches = pendingBranches.filter(
+                branch => !successfulSyncs.includes(branch.localId)
+            );
+            await localforage.setItem('pendingBranches', remainingBranches);
+            console.log("Branches sync complete!");
+        }
+    } catch (error) {
+        console.error("Error during branches sync process:", error);
+    }
+};
+
+export const saveUserOffline = async (userData) => {
+    try {
+        const pendingUsers = await localforage.getItem('pendingUsers') || [];
+        const offlineUser = { ...userData, localId: Date.now(), isOffline: true };
+        pendingUsers.push(offlineUser);
+        await localforage.setItem('pendingUsers', pendingUsers);
+        return true;
+    } catch (error) {
+        console.error("Error saving user offline:", error);
+        return false;
+    }
+};
+
+export const getOfflineUsers = async () => {
+    try {
+        return await localforage.getItem('pendingUsers') || [];
+    } catch (error) {
+        console.error("Error fetching offline users:", error);
+        return [];
+    }
+};
+
+export const syncOfflineUsers = async () => {
+    if (!navigator.onLine) return;
+
+    try {
+        const pendingUsers = await localforage.getItem('pendingUsers');
+        if (pendingUsers && pendingUsers.length > 0) {
+            console.log(`Attempting to sync ${pendingUsers.length} offline users...`);
+            const successfulSyncs = [];
+            for (const user of pendingUsers) {
+                try {
+                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                    const sessionString = sessionStorage.getItem('ims-session');
+                    let token = null;
+                    if (sessionString) {
+                        try {
+                            const sessionData = JSON.parse(sessionString);
+                            token = sessionData.token;
+                        } catch (e) { }
+                    }
+                    const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+                    await axios.post(`${API_URL}/users`, user, config);
+                    successfulSyncs.push(user.localId);
+                } catch (error) {
+                    console.error(`Failed to sync user ${user.localId}:`, error);
+                    if (error.response && (error.response.status === 400 || error.response.status === 409)) {
+                        console.warn(`Discarding un-syncable user ${user.localId}`);
+                        successfulSyncs.push(user.localId);
+                    }
+                }
+            }
+            const remainingUsers = pendingUsers.filter(
+                user => !successfulSyncs.includes(user.localId)
+            );
+            await localforage.setItem('pendingUsers', remainingUsers);
+            console.log("Users sync complete!");
+        }
+    } catch (error) {
+        console.error("Error during users sync process:", error);
+    }
+};

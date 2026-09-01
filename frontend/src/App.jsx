@@ -6,7 +6,7 @@ import {
 } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { saveSaleOffline, syncOfflineSales, syncOfflineReturns, syncOfflineSettlements, syncOfflineCustomers, cacheLoginCredentials, attemptOfflineLogin, getOfflineCustomers } from './utils/offlineSync';
+import { saveSaleOffline, syncOfflineSales, syncOfflineReturns, syncOfflineSettlements, syncOfflineCustomers, cacheLoginCredentials, attemptOfflineLogin, getOfflineCustomers, syncOfflineBranches, syncOfflineUsers } from './utils/offlineSync';
 import localforage from 'localforage';
 import _BarcodeReader from 'react-barcode-reader'
 
@@ -125,12 +125,16 @@ function App() {
     syncOfflineReturns()
     syncOfflineSettlements()
     syncOfflineCustomers()
+    syncOfflineBranches()
+    syncOfflineUsers()
     const handleOnline = async () => {
       setIsOnline(true)
       await syncOfflineSales()
       await syncOfflineReturns()
       await syncOfflineSettlements()
       await syncOfflineCustomers()
+      await syncOfflineBranches()
+      await syncOfflineUsers()
       alert("Internet connection restored. Syncing offline data...")
       if (session?.token) {
         refreshCoreData()

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { SectionHeading } from '../../components/SectionHeading'
 import { authConfig } from '../../utils'
+import { saveBranchOffline, getOfflineBranches } from '../../utils/offlineSync'
 
 /**
  * Module: Branches
@@ -55,8 +56,17 @@ export function BranchManagement({ api, session }) {
   async function fetchBranches() {
     try {
       setLoading(true)
-      const res = await api.get('/branches', authConfig(session.token))
-      setBranches(res.data)
+      const offlineBranches = await getOfflineBranches()
+      let onlineBranches = []
+      if (navigator.onLine) {
+         try {
+             const res = await api.get('/branches', authConfig(session.token))
+             onlineBranches = res.data
+         } catch (e) {
+             console.error("Failed online fetch")
+         }
+      }
+      setBranches([...offlineBranches, ...onlineBranches])
     } catch (err) {
       console.error('Error fetching branches:', err)
     } finally {
@@ -110,7 +120,13 @@ export function BranchManagement({ api, session }) {
       if (editingBranch) {
         await api.put(`/branches/${editingBranch._id}`, form, authConfig(session.token))
       } else {
-        await api.post('/branches', form, authConfig(session.token))
+        if (!navigator.onLine) {
+          const offlineBranch = { ...form, _id: `OFFLINE-BRANCH-${Date.now()}` }
+          await saveBranchOffline(offlineBranch)
+          alert('You are offline. Branch saved locally and will sync when online.')
+        } else {
+          await api.post('/branches', form, authConfig(session.token))
+        }
       }
       setShowModal(false)
       fetchBranches()
