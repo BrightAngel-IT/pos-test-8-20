@@ -1303,7 +1303,7 @@ textarea:focus {
     z-index: 1000;
     transform: translateX(-100%);
     transition: transform 0.3s ease;
-    padding: 24px 16px !important;
+    padding: 32px 24px !important;
   }
   
   .sidebar.open {
@@ -1311,11 +1311,14 @@ textarea:focus {
   }
 
   /* Override the 1200px rule that hides text */
-  .sidebar span,
+  .sidebar span {
+    display: inline-block !important;
+  }
+
   .sidebar h2,
   .sidebar p,
   .sidebar .role-banner {
-    display: inline-block !important;
+    display: block !important;
   }
 
   .sidebar-overlay {
@@ -1330,8 +1333,12 @@ textarea:focus {
   }
   
   .pos-grid,
-  .inventory-grid {
-    grid-template-columns: 1fr;
+  .inventory-grid,
+  .grid-2,
+  .grid-3,
+  .metric-grid,
+  .content-grid {
+    grid-template-columns: 1fr !important;
   }
   
   .mobile-menu-btn {
