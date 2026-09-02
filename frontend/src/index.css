@@ -1074,30 +1074,7 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
-  .app-shell {
-    grid-template-columns: 80px 1fr;
-  }
 
-  .sidebar {
-    padding: 24px 12px;
-    align-items: center;
-  }
-
-  .nav-link {
-    padding: 12px;
-    justify-content: center;
-  }
-
-  .brand-lockup {
-    justify-content: center;
-  }
-
-  .sidebar span,
-  .sidebar h2,
-  .sidebar p,
-  .sidebar .role-banner {
-    display: none;
-  }
 }
 
 /* Professional Table & High-Density UI */
@@ -1283,7 +1260,7 @@ textarea:focus {
   display: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1200px) {
   .app-shell {
     grid-template-columns: 1fr !important;
   }
