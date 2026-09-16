@@ -1774,21 +1774,34 @@ async function saveUser(payload, reqUser) {
   return sanitizeUser(newUser);
 }
 
-async function deleteUser(userId) {
+async function deleteUser(userId, reqUser) {
+  let targetUser;
   if (isDatabaseReady()) {
-    const user = await User.findByIdAndDelete(userId);
-    if (!user) {
-      throw createError('User not found.', 404);
+    targetUser = await User.findById(userId).lean();
+  } else {
+    targetUser = memoryStore.users.find((u) => String(u._id) === String(userId));
+  }
+
+  if (!targetUser) {
+    throw createError('User not found.', 404);
+  }
+
+  if (reqUser && reqUser.role === 'admin') {
+    if (targetUser.role !== 'cashier') {
+      throw createError('Admins can only delete cashiers.', 403);
     }
+    if (String(targetUser.branch || '').toLowerCase() !== String(reqUser.branch || '').toLowerCase()) {
+      throw createError('Admins can only delete cashiers in their own branch.', 403);
+    }
+  }
+
+  if (isDatabaseReady()) {
+    await User.findByIdAndDelete(userId);
     memoryStore.users = await User.find().lean();
     return { success: true };
   }
 
   const index = memoryStore.users.findIndex((u) => String(u._id) === String(userId));
-  if (index < 0) {
-    throw createError('User not found.', 404);
-  }
-
   memoryStore.users.splice(index, 1);
   return { success: true };
 }

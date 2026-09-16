@@ -19,7 +19,7 @@ import {
   History
 } from 'lucide-react'
 import { SectionHeading } from '../../components/SectionHeading'
-import { authConfig, formatCurrency, formatDate, exportToCSV, printReceipt } from '../../utils'
+import { authConfig, formatCurrency, formatDate, exportToCSV, printReceipt, previewReceipt } from '../../utils'
 
 export default function Invoices({ api, session, onNotice, sales: initialSales = [], customers = [], company }) {
   const navigate = useNavigate()
@@ -120,9 +120,10 @@ export default function Invoices({ api, session, onNotice, sales: initialSales =
   const filtered = useMemo(() => {
     return displayData.filter(inv => {
       const invNo = String(inv.invoiceNo || '').toLowerCase();
+      const rawInvNo = String(inv.raw?.invoiceNumber || inv.raw?.invoiceNo || '').toLowerCase();
       const custName = String(inv.customerName || '').toLowerCase();
       const s = search.toLowerCase();
-      return invNo.includes(s) || custName.includes(s);
+      return invNo.includes(s) || rawInvNo.includes(s) || custName.includes(s);
     })
   }, [displayData, search])
 
@@ -308,7 +309,7 @@ export default function Invoices({ api, session, onNotice, sales: initialSales =
                           <button 
                             className="icon-btn sm glow-on-hover" 
                             title="Preview"
-                            onClick={() => printReceipt(inv.raw, session.user, 0, company)}
+                            onClick={() => previewReceipt(inv.raw, session.user, 0, company)}
                           >
                             <Eye size={14} />
                           </button>

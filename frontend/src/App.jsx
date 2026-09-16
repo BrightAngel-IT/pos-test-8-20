@@ -815,7 +815,16 @@ function App() {
         paymentMethod: checkoutForm.paymentMethod,
         discount: Number(checkoutForm.discount || 0),
         notes: checkoutForm.notes,
-        items: cart.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+        items: cart.map((item) => ({ 
+          productId: item.productId, 
+          quantity: item.quantity,
+          name: item.name,
+          sku: item.sku,
+          price: item.price,
+          originalPrice: item.price,
+          loyaltyDiscount: item.loyaltyDiscount,
+          lineTotal: item.lineTotal
+        })),
         returnDays: Number(checkoutForm.returnDays || 0),
         splitPayments: splitPayments.length > 0 ? splitPayments : undefined,
         total: cartTotal,
