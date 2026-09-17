@@ -84,7 +84,7 @@ export const exportToCSV = (data, fileName) => {
   document.body.removeChild(link)
 }
 
-export const getReceiptHTML = (sale, user, receivedAmount = 0, company = null, isPreview = false) => {
+export const getReceiptHTML = (sale, user, receivedAmount = 0, company = null) => {
   const logoUrl = company?.logo ? `${getBaseUrl()}${company.logo}` : ''
   const companyName = company?.name || 'NILMA Alliance (Pvt) Ltd'
   const companyTagline = company?.tagline || 'Excellence Across Diverse Industries'
@@ -243,7 +243,6 @@ export const getReceiptHTML = (sale, user, receivedAmount = 0, company = null, i
         </div>
 
         <script>
-          ${isPreview ? '' : `
           window.onload = function() {
             setTimeout(function() {
               window.focus();
@@ -252,7 +251,6 @@ export const getReceiptHTML = (sale, user, receivedAmount = 0, company = null, i
               setTimeout(function() { window.close(); }, 1000); // safety close
             }, 300);
           };
-          `}
         </script>
       </body>
     </html>
@@ -264,24 +262,11 @@ export const printReceipt = (sale, user, receivedAmount = 0, company = null) => 
     const receiptWindow = window.open('', '_blank', 'width=450,height=800')
     if (!receiptWindow) return
     
-    const html = getReceiptHTML(sale, user, receivedAmount, company, false)
+    const html = getReceiptHTML(sale, user, receivedAmount, company)
     receiptWindow.document.write(html)
     receiptWindow.document.close()
   } catch (error) {
     console.error("Error generating receipt preview or printing:", error)
-  }
-}
-
-export const previewReceipt = (sale, user, receivedAmount = 0, company = null) => {
-  try {
-    const receiptWindow = window.open('', '_blank', 'width=450,height=800')
-    if (!receiptWindow) return
-    
-    const html = getReceiptHTML(sale, user, receivedAmount, company, true)
-    receiptWindow.document.write(html)
-    receiptWindow.document.close()
-  } catch (error) {
-    console.error("Error generating receipt preview:", error)
   }
 }
 

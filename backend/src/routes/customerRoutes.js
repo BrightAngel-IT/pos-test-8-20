@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Customer = require('../models/Customer');
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 
 /**
  * Customer Routes
@@ -62,7 +62,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
 // DELETE A CUSTOMER
 // ==========================================
 // DELETE /api/customers/:id
-router.delete('/:id', requireAuth, requireRole(['super_admin', 'admin']), async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
   await Customer.findByIdAndDelete(req.params.id);
   res.json({ success: true });
 });

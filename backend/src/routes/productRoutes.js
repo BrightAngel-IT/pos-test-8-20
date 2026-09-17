@@ -46,7 +46,7 @@ router.get('/', requireAuth, async (req, res, next) => {
 // ==========================================
 // POST /api/products
 // Admin only. Also processes multipart/form-data for product images.
-router.post('/', requireAuth, requireRole(['super_admin', 'admin']), upload.single('image'), async (req, res, next) => {
+router.post('/', requireAuth, requireRole(['admin']), upload.single('image'), async (req, res, next) => {
   try {
     const payload = { ...req.body };
 
@@ -77,7 +77,7 @@ router.post('/', requireAuth, requireRole(['super_admin', 'admin']), upload.sing
 // ==========================================
 // PATCH /api/products/:id
 // Admin only. Also processes multipart/form-data for product images.
-router.patch('/:id', requireAuth, requireRole(['super_admin', 'admin']), upload.single('image'), async (req, res, next) => {
+router.patch('/:id', requireAuth, requireRole(['admin']), upload.single('image'), async (req, res, next) => {
   try {
     const payload = { ...req.body };
 
@@ -108,7 +108,7 @@ router.patch('/:id', requireAuth, requireRole(['super_admin', 'admin']), upload.
 // ==========================================
 // DELETE /api/products/:id
 // Admin only.
-router.delete('/:id', requireAuth, requireRole(['super_admin', 'admin']), async (req, res, next) => {
+router.delete('/:id', requireAuth, requireRole(['admin']), async (req, res, next) => {
   try {
     await deleteProduct(req.params.id);
     res.json({ message: 'Product deleted successfully.' });

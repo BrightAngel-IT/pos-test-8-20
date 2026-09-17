@@ -7,11 +7,11 @@ const router = express.Router();
  * Handles inventory procurement and purchase orders.
  */
 
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const { getPurchases, createPurchase } = require('../services/store');
 
 // CRUD routes for Purchase
-router.get('/', requireAuth, requireRole(['super_admin', 'admin']), async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const branchFilter = req.query.branch || (req.user.role !== 'super_admin' ? req.user.branch : null);
     const purchases = await getPurchases({ branch: branchFilter });
@@ -21,7 +21,7 @@ router.get('/', requireAuth, requireRole(['super_admin', 'admin']), async (req, 
   }
 });
 
-router.post('/', requireAuth, requireRole(['super_admin', 'admin']), async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const branchName = req.user.role === 'super_admin' ? (req.body.branch || 'Main Branch') : (req.user?.branch || 'Main Branch');
     const purchase = await createPurchase({ ...req.body, branch: branchName });
@@ -32,7 +32,7 @@ router.post('/', requireAuth, requireRole(['super_admin', 'admin']), async (req,
   }
 });
 
-router.put('/:id', requireAuth, requireRole(['super_admin', 'admin']), async (req, res) => {
+router.put('/:id', requireAuth, async (req, res) => {
   try {
     const Purchase = require('../models/Purchase');
     const { isDatabaseReady } = require('../config/database');
@@ -54,7 +54,7 @@ router.put('/:id', requireAuth, requireRole(['super_admin', 'admin']), async (re
   }
 });
 
-router.delete('/:id', requireAuth, requireRole(['super_admin', 'admin']), async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const Purchase = require('../models/Purchase');
     const { isDatabaseReady } = require('../config/database');

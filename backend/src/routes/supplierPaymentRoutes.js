@@ -14,9 +14,9 @@ const {
   getUnpaidSupplierInvoices 
 } = require('../services/supplierPaymentService');
 const SupplierPayment = require('../models/SupplierPayment');
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 
-router.get('/', requireAuth, requireRole(['super_admin', 'admin']), async (req, res, next) => {
+router.get('/', requireAuth, async (req, res, next) => {
   try {
     const { supplierId } = req.query;
     const filter = supplierId ? { supplierId } : {};
@@ -27,7 +27,7 @@ router.get('/', requireAuth, requireRole(['super_admin', 'admin']), async (req, 
   }
 });
 
-router.post('/', requireAuth, requireRole(['super_admin', 'admin']), async (req, res, next) => {
+router.post('/', requireAuth, async (req, res, next) => {
   try {
     const payment = await createSupplierPaymentWithAllocations(req.body);
     res.status(201).json(payment);
@@ -36,7 +36,7 @@ router.post('/', requireAuth, requireRole(['super_admin', 'admin']), async (req,
   }
 });
 
-router.get('/:id', requireAuth, requireRole(['super_admin', 'admin']), async (req, res, next) => {
+router.get('/:id', requireAuth, async (req, res, next) => {
   try {
     const payment = await getSupplierPaymentDetails(req.params.id);
     if (!payment) {

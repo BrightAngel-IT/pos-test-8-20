@@ -22,7 +22,7 @@ import {
   Layers,
   ArrowUpRight
 } from 'lucide-react'
-import { authConfig, formatCurrency, formatDate, printReceipt, previewReceipt, exportToCSV } from '../../utils'
+import { authConfig, formatCurrency, formatDate, printReceipt, exportToCSV } from '../../utils'
 import { SectionHeading } from '../../components/SectionHeading'
 
 export default function SalesHistory({ api, session, onNotice, company }) {
@@ -319,7 +319,7 @@ export default function SalesHistory({ api, session, onNotice, company }) {
                   </td>
                   <td style={{ textAlign: 'right', paddingRight: '24px', borderBottom: idx === paginatedSales.length - 1 ? 'none' : '1px solid var(--border-soft)' }}>
                     <div className="cluster gap-1 justify-end">
-                      <button className="btn btn-ghost sm" title="View Detailed Bill" onClick={() => previewReceipt(sale, session.user, 0, company)}><Eye size={16} /></button>
+                      <button className="btn btn-ghost sm" title="View Detailed Bill" onClick={() => printReceipt(sale, session.user, 0, company)}><Eye size={16} /></button>
                       <button className="btn btn-ghost sm" title="Export Document" onClick={() => printReceipt(sale, session.user, 0, company)}><Download size={16} /></button>
                     </div>
                   </td>

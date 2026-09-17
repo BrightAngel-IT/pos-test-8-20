@@ -47,11 +47,7 @@ export function Sidebar({
           { path: '/purchases', label: 'Purchases', icon: Receipt },
           { path: '/super-admin/returns', label: 'Returns', icon: RotateCcw },
           { path: '/suppliers', label: 'Suppliers', icon: User },
-          { path: '/customers', label: 'Customers', icon: User },
-          { path: '/invoices', label: 'Invoices', icon: Receipt },
-          { path: '/payments', label: 'Settlements', icon: Wallet },
           { path: '/staff', label: 'Employees', icon: Users },
-          { path: '/company-profile', label: 'Company Profile', icon: Building2 },
         ]
       : [
           { path: '/', label: 'Overview', icon: LayoutDashboard },

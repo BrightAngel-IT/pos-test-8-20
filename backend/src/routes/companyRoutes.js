@@ -31,7 +31,7 @@ router.get('/', async (req, res, next) => {
 // ==========================================
 // POST /api/company
 // Admin only route to update company settings. Also handles logo image uploads.
-router.post('/', requireAuth, requireRole(['super_admin']), upload.single('logo'), async (req, res, next) => {
+router.post('/', requireAuth, requireRole(['admin']), upload.single('logo'), async (req, res, next) => {
   try {
     const payload = { ...req.body };
     // If a new logo was uploaded via Multer, append the path to the payload

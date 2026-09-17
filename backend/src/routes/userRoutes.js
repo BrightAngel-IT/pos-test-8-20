@@ -33,7 +33,7 @@ router.post('/', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
-    const result = await deleteUser(req.params.id, req.user);
+    const result = await deleteUser(req.params.id);
     res.json(result);
   } catch (error) {
     next(error);
