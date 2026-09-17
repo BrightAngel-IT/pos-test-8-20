@@ -25,6 +25,9 @@ router.get('/', requireAuth, async (req, res, next) => {
 
 router.post('/', requireAuth, async (req, res, next) => {
   try {
+    if (req.body.type === 'supplier' && req.user.role === 'cashier') {
+      return res.status(403).json({ message: 'Cashiers are not authorized to process supplier returns.' });
+    }
     const returnDoc = await createReturn({
       ...req.body,
       processedBy: req.user._id

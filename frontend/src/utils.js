@@ -213,7 +213,11 @@ export const getReceiptHTML = (sale, user, receivedAmount = 0, company = null) =
                 <span>PAYMENT (CREDIT):</span>
                 <span>0.00</span>
               </div>
-              <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 14px;">
+              ${sale.creditPeriodDays ? `<div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; color: #555;">
+                <span>CREDIT PERIOD:</span>
+                <span>${sale.creditPeriodDays} DAYS</span>
+              </div>` : ''}
+              <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 14px; margin-top: 2px;">
                 <span>AMOUNT DUE:</span>
                 <span>${Number(sale.total).toFixed(2)}</span>
               </div>
@@ -234,6 +238,7 @@ export const getReceiptHTML = (sale, user, receivedAmount = 0, company = null) =
 
         <div style="text-align: center; font-weight: 700;">
           <div style="font-size: 10px; margin-bottom: 6px;">ITEMS: ${sale.items.length} | QTY: ${sale.items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0).toFixed(2)}</div>
+          ${Number(sale.returnDays) > 0 ? `<div style="font-size: 10px; margin-bottom: 6px; font-weight: 800; border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 4px 0;">RETURN PERIOD: ${sale.returnDays} DAYS</div>` : ''}
           <div style="font-weight: 900; margin: 6px 0; font-size: 13px;">*** THANK YOU - VISIT AGAIN ***</div>
           
           <div style="border-top: 1px dashed #000; padding-top: 8px; font-size: 9px; letter-spacing: 0.5px; text-transform: uppercase;">
@@ -259,12 +264,35 @@ export const getReceiptHTML = (sale, user, receivedAmount = 0, company = null) =
 
 export const printReceipt = (sale, user, receivedAmount = 0, company = null) => {
   try {
-    const receiptWindow = window.open('', '_blank', 'width=450,height=800')
-    if (!receiptWindow) return
+    const html = getReceiptHTML(sale, user, receivedAmount, company);
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
     
-    const html = getReceiptHTML(sale, user, receivedAmount, company)
-    receiptWindow.document.write(html)
-    receiptWindow.document.close()
+    // We don't want the iframe script to close the main window!
+    // So we need to remove the window.close() from the HTML just in case, 
+    // or the script won't be able to close the iframe anyway.
+    
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+
+    // After the iframe is loaded, trigger print
+    iframe.onload = function() {
+      setTimeout(() => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch (e) {
+          console.error("Iframe print failed", e);
+        }
+        // Cleanup after printing (give some time for dialog to close)
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+        }, 10000); // 10 seconds is usually enough
+      }, 500);
+    };
   } catch (error) {
     console.error("Error generating receipt preview or printing:", error)
   }

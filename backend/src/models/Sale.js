@@ -34,12 +34,12 @@ const saleSchema = new mongoose.Schema(
     loyaltyCard: { type: String, default: '' },
     paymentMethod: {
       type: String,
-      enum: ['cash', 'card', 'credit', 'split'],
+      enum: ['cash', 'card', 'credit', 'split', 'upi', 'bank-transfer'],
       default: 'cash',
     },
     splitPayments: [
       {
-        method: { type: String, enum: ['cash', 'card', 'credit'] },
+        method: { type: String, enum: ['cash', 'card', 'credit', 'upi', 'bank-transfer'] },
         amount: { type: Number, required: true }
       }
     ],

@@ -451,3 +451,70 @@ export const syncOfflineUsers = async () => {
         console.error("Error during users sync process:", error);
     }
 };
+
+export const saveShiftOffline = async (shiftData) => {
+    try {
+        const pendingShifts = await localforage.getItem('pendingShifts') || [];
+        const offlineShift = { ...shiftData, localId: Date.now(), isOffline: true };
+        pendingShifts.push(offlineShift);
+        await localforage.setItem('pendingShifts', pendingShifts);
+        return true;
+    } catch (error) {
+        console.error("Error saving shift offline:", error);
+        return false;
+    }
+};
+
+export const getOfflineShifts = async () => {
+    try {
+        return await localforage.getItem('pendingShifts') || [];
+    } catch (error) {
+        console.error("Error fetching offline shifts:", error);
+        return [];
+    }
+};
+
+export const syncOfflineShifts = async (actionFilter = null) => {
+    if (!navigator.onLine) return;
+
+    try {
+        const pendingShifts = await localforage.getItem('pendingShifts');
+        if (pendingShifts && pendingShifts.length > 0) {
+            const shiftsToProcess = actionFilter ? pendingShifts.filter(s => s.action === actionFilter) : pendingShifts;
+            if (shiftsToProcess.length === 0) return;
+
+            console.log(`Attempting to sync ${shiftsToProcess.length} offline ${actionFilter || ''} shifts...`);
+            const successfulSyncs = [];
+            for (const shift of shiftsToProcess) {
+                try {
+                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                    const sessionString = sessionStorage.getItem('ims-session');
+                    let token = null;
+                    if (sessionString) {
+                        try {
+                            const sessionData = JSON.parse(sessionString);
+                            token = sessionData.token;
+                        } catch (e) { }
+                    }
+                    const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+                    const endpoint = shift.action === 'open' ? '/shifts/open' : '/shifts/close';
+                    await axios.post(`${API_URL}${endpoint}`, shift.payload || {}, config);
+                    successfulSyncs.push(shift.localId);
+                } catch (error) {
+                    console.error(`Failed to sync shift ${shift.localId}:`, error);
+                    if (error.response && (error.response.status === 400 || error.response.status === 409)) {
+                        console.warn(`Discarding un-syncable shift ${shift.localId}`);
+                        successfulSyncs.push(shift.localId);
+                    }
+                }
+            }
+            const remainingShifts = pendingShifts.filter(
+                s => !successfulSyncs.includes(s.localId)
+            );
+            await localforage.setItem('pendingShifts', remainingShifts);
+            console.log(`Shifts (${actionFilter || 'all'}) sync complete!`);
+        }
+    } catch (error) {
+        console.error("Error during shifts sync process:", error);
+    }
+};

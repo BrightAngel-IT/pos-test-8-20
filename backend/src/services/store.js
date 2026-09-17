@@ -23,6 +23,7 @@ const BranchStock = require('../models/BranchStock');
 const Purchase = require('../models/Purchase');
 const Transfer = require('../models/Transfer');
 const Company = require('../models/Company');
+const Shift = require('../models/Shift');
 
 const memoryStore = {
   ready: false,
@@ -800,7 +801,7 @@ async function createSale(payload) {
     invoiceNumber,
     customerName: String(payload.customerName || 'Walk-in customer').trim(),
     loyaltyCard: String(payload.loyaltyCard || '').trim(),
-    paymentMethod: ['cash', 'card', 'credit', 'split'].includes(payload.paymentMethod)
+    paymentMethod: ['cash', 'card', 'credit', 'split', 'upi', 'bank-transfer'].includes(payload.paymentMethod)
       ? payload.paymentMethod
       : 'cash',
     splitPayments: payload.splitPayments || undefined,
@@ -821,6 +822,12 @@ async function createSale(payload) {
   };
 
   if (isDatabaseReady()) {
+    console.log("createSale: Checking for open shift...");
+    const activeShift = await Shift.findOne({ cashierId: payload.cashier._id, status: 'open' });
+    if (!activeShift) {
+      throw createError('You must Start Job before processing sales.', 400);
+    }
+
     console.log("createSale: Creating sale in DB...");
     const sale = await Sale.create(salePayload);
     console.log("createSale: Sale created in DB.");
@@ -1378,6 +1385,11 @@ async function getOverviewData(user, branchFilter = null, trendRange = 'monthly'
     isDatabaseReady() ? SupplierInvoice.find().sort({ updatedAt: -1 }).populate('supplierId').lean() : []
   ]);
 
+  let activeShift = null;
+  if (user && user.role === 'cashier' && isDatabaseReady()) {
+    activeShift = await Shift.findOne({ cashierId: user._id, status: 'open' }).lean();
+  }
+
   if (activeBranch) {
     sales = sales.filter((sale) => sale.branch === activeBranch);
     users = users.filter((u) => u.branch === activeBranch);
@@ -1408,7 +1420,16 @@ async function getOverviewData(user, branchFilter = null, trendRange = 'monthly'
       rackLabel: getRackLabel(product.rack),
     }));
 
-  const salesToday = sales.filter((sale) => sameDay(sale.createdAt, now));
+  let salesToday = [];
+  if (user && user.role === 'cashier') {
+    if (activeShift) {
+      salesToday = sales.filter((sale) => new Date(sale.createdAt) >= new Date(activeShift.startTime));
+    } else {
+      salesToday = [];
+    }
+  } else {
+    salesToday = sales.filter((sale) => sameDay(sale.createdAt, now));
+  }
   const salesThisWeek = sales.filter((sale) => new Date(sale.createdAt) >= weekStart);
   const salesThisMonth = sales.filter((sale) => new Date(sale.createdAt) >= monthStart);
   const salesThisYear = sales.filter((sale) => new Date(sale.createdAt) >= yearStart);
@@ -1960,7 +1981,11 @@ module.exports = {
   createPurchase,
   transferInventory,
   getTransfers,
-  settleReturn
+  settleReturn,
+  openShift,
+  getWorksheets,
+  getCurrentShift,
+  closeShift,
 };
 
 async function getPurchases(filters = {}) {
@@ -2314,4 +2339,145 @@ async function deleteBranch(branchId) {
   memoryStore.branchStocks = memoryStore.branchStocks.filter(bs => bs.branch !== branchName);
 
   return { success: true };
+}
+
+// ==========================================
+// SHIFT & WORKSHEET MANAGEMENT
+// ==========================================
+
+async function getCurrentShift(cashierId) {
+  const today = new Date().toISOString().split('T')[0];
+
+  if (!isDatabaseReady()) {
+    const shift = memoryStore.shifts?.find(s => String(s.cashierId) === String(cashierId) && s.status === 'open');
+    if (shift && shift.date !== today) {
+      await closeShift(cashierId);
+      return null;
+    }
+    return shift || null;
+  }
+
+  const shift = await Shift.findOne({ cashierId, status: 'open' }).lean();
+  if (shift && shift.date !== today) {
+    await closeShift(cashierId);
+    return null;
+  }
+  return shift || null;
+}
+
+async function openShift(cashierId, branchName, startTime = null) {
+  const shiftDate = startTime ? new Date(startTime) : new Date();
+  const today = shiftDate.toISOString().split('T')[0];
+
+  if (!isDatabaseReady()) {
+    if (!memoryStore.shifts) memoryStore.shifts = [];
+    const existing = memoryStore.shifts.find(s => String(s.cashierId) === String(cashierId) && s.status === 'open');
+    if (existing) throw createError('You already have an active shift.', 400);
+
+    const shift = {
+      _id: generateId(),
+      cashierId,
+      cashierName: 'Demo Cashier',
+      cashierUsername: 'cashier',
+      branch: branchName || 'Main Branch',
+      date: today,
+      startTime: shiftDate,
+      status: 'open',
+      totals: { cash: 0, card: 0, credit: 0, total: 0 },
+      salesCount: 0
+    };
+    memoryStore.shifts.push(shift);
+    return shift;
+  }
+  
+  const cashier = await User.findById(cashierId).lean();
+  if (!cashier) throw createError('Cashier not found.', 404);
+
+  const existingShift = await Shift.findOne({ cashierId, status: 'open' });
+  if (existingShift) {
+    throw createError('You already have an active shift.', 400);
+  }
+
+  const shift = await Shift.create({
+    cashierId: cashier._id,
+    cashierName: cashier.name,
+    cashierUsername: cashier.username,
+    branch: branchName || 'Main Branch',
+    date: today,
+    startTime: shiftDate
+  });
+
+  return shift.toObject();
+}
+
+async function closeShift(cashierId, endTime = null) {
+  const finalEndTime = endTime ? new Date(endTime) : new Date();
+
+  if (!isDatabaseReady()) {
+    const shift = memoryStore.shifts?.find(s => String(s.cashierId) === String(cashierId) && s.status === 'open');
+    if (!shift) throw createError('No open shift found for this cashier.', 400);
+    shift.status = 'closed';
+    shift.endTime = finalEndTime;
+    return shift;
+  }
+  
+  const cashier = await User.findById(cashierId).lean();
+  if (!cashier) throw createError('Cashier not found.', 404);
+
+  // Find an open shift
+  const shift = await Shift.findOne({ cashierId, status: 'open' });
+  if (!shift) {
+    throw createError('No open shift found for this cashier.', 400);
+  }
+
+  // Calculate totals from sales during this shift (up to finalEndTime just in case, though usually all sales till now)
+  const sales = await Sale.find({
+    'cashier.userId': cashierId,
+    createdAt: { $gte: shift.startTime, $lte: finalEndTime }
+  }).lean();
+
+  let cashTotal = 0;
+  let cardTotal = 0;
+  let creditTotal = 0;
+  let totalSales = 0;
+
+  sales.forEach(sale => {
+    totalSales += sale.total;
+    if (sale.paymentMethod === 'split' && sale.splitPayments) {
+      sale.splitPayments.forEach(p => {
+        if (p.method === 'cash') cashTotal += p.amount;
+        if (p.method === 'card') cardTotal += p.amount;
+        if (p.method === 'credit') creditTotal += p.amount;
+      });
+    } else {
+      if (sale.paymentMethod === 'cash') cashTotal += sale.total;
+      if (sale.paymentMethod === 'card') cardTotal += sale.total;
+      if (sale.paymentMethod === 'credit') creditTotal += sale.total;
+    }
+  });
+
+  shift.totals = {
+    cash: formatCurrencyAmount(cashTotal),
+    card: formatCurrencyAmount(cardTotal),
+    credit: formatCurrencyAmount(creditTotal),
+    total: formatCurrencyAmount(totalSales)
+  };
+  shift.salesCount = sales.length;
+  shift.endTime = finalEndTime;
+  shift.status = 'closed';
+
+  await shift.save();
+
+  return shift.toObject();
+}
+
+async function getWorksheets(filters = {}) {
+  if (!isDatabaseReady()) return [];
+  
+  const query = { status: 'closed' };
+  if (filters.cashierId) query.cashierId = filters.cashierId;
+  if (filters.date) query.date = filters.date;
+  if (filters.branch) query.branch = filters.branch;
+
+  return Shift.find(query).sort({ endTime: -1 }).populate('cashierId', 'name username').lean();
 }

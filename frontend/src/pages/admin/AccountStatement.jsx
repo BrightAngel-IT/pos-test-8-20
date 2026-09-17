@@ -398,6 +398,10 @@ export default function AccountStatement({ api, session, onNotice, company, cust
             <Download size={16} />
             Download PDF
           </button>
+          <button className="btn btn-primary" onClick={() => window.print()}>
+            <Printer size={16} />
+            Print Statement
+          </button>
           <button className="btn btn-primary shadow-lg" onClick={() => setShowBillsModal(true)}>
             <Printer size={16} />
             Print Previous Bills

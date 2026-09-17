@@ -23,9 +23,11 @@ import {
   UserPlus,
   ScanLine,
   Users,
+  AlertCircle
 } from 'lucide-react'
 import { SectionHeading } from '../../components/SectionHeading'
 import { formatCurrency } from '../../utils'
+import { getOfflineShifts } from '../../utils/offlineSync'
 
 export function POS({
   api,
@@ -70,6 +72,37 @@ export function POS({
   const [customerSearch, setCustomerSearch] = useState('')
 
   const [unpaidMetrics, setUnpaidMetrics] = useState({ totalUnpaid: 0, oldestUnpaidDays: 0, isOverdue: false })
+
+  const [hasActiveJob, setHasActiveJob] = useState(true)
+
+  React.useEffect(() => {
+    async function checkActiveJob() {
+      if (!session || !api) return
+      
+      if (!navigator.onLine) {
+        const offlineShifts = await getOfflineShifts()
+        if (offlineShifts.length > 0) {
+          const lastShift = offlineShifts[offlineShifts.length - 1]
+          setHasActiveJob(lastShift.action === 'open')
+        } else {
+          const lastKnown = localStorage.getItem('ims-last-known-job') === 'true'
+          setHasActiveJob(lastKnown) 
+        }
+        return
+      }
+
+      try {
+        const res = await api.get(`/shifts/current?_t=${Date.now()}`, {
+          headers: { Authorization: `Bearer ${session.token}` }
+        })
+        setHasActiveJob(!!res.data)
+        localStorage.setItem('ims-last-known-job', !!res.data ? 'true' : 'false')
+      } catch (err) {
+        setHasActiveJob(true)
+      }
+    }
+    checkActiveJob()
+  }, [session, api])
 
   React.useEffect(() => {
     if (!checkoutForm.customerId || !api || !session) {
@@ -150,9 +183,22 @@ export function POS({
 
   return (
     <div className="pos-grid animate-fade" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '16px', width: '100%', padding: '0 10px' }}>
+      {!hasActiveJob && (
+        <div className="p-3 cluster gap-2 align-center justify-center" style={{ gridColumn: '1 / -1', background: 'var(--warning-soft)', borderRadius: '8px', border: '1px solid var(--warning)', color: 'var(--warning-strong)', textAlign: 'center', fontSize: '1rem', fontWeight: 600 }}>
+          <PauseCircle size={20} />
+          You have not started your job yet. You must go to the "Work Shift" tab to Start Job before processing sales.
+        </div>
+      )}
+      {unpaidMetrics.totalUnpaid > 0 && !unpaidMetrics.isOverdue && (
+        <div className="p-3 cluster gap-2 align-center justify-center" style={{ gridColumn: '1 / -1', background: 'var(--warning-soft)', borderRadius: '8px', border: '1px solid var(--warning)', color: 'var(--warning-strong)', textAlign: 'center', fontSize: '1rem', fontWeight: 600 }}>
+          <AlertCircle size={20} />
+          This customer has an unpaid balance of {formatCurrency(unpaidMetrics.totalUnpaid)}.
+        </div>
+      )}
       {unpaidMetrics.isOverdue && (
-        <div className="p-3" style={{ gridColumn: '1 / -1', background: 'var(--danger-soft)', borderRadius: '8px', border: '1px solid var(--danger)', color: 'var(--danger-strong)', textAlign: 'center', fontSize: '1rem', fontWeight: 600 }}>
-          Customer has overdue payments (older than {customers.find(c => c._id === checkoutForm.customerId)?.creditPeriodDays || 0} days). Cannot process new credit bills until they are cleared.
+        <div className="p-3 stack gap-1 align-center justify-center" style={{ gridColumn: '1 / -1', background: 'var(--danger-soft)', borderRadius: '8px', border: '1px solid var(--danger)', color: 'var(--danger-strong)', textAlign: 'center', fontSize: '1rem', fontWeight: 600 }}>
+          <div className="cluster gap-2"><AlertCircle size={20} /> Customer has an unpaid balance of {formatCurrency(unpaidMetrics.totalUnpaid)}!</div>
+          <div className="x-small">Payments are overdue (older than {customers.find(c => c._id === checkoutForm.customerId)?.creditPeriodDays || 0} days). Cannot process new credit bills until cleared.</div>
         </div>
       )}
       <aside className="stack gap-4 sticky-panel">
@@ -526,10 +572,12 @@ export function POS({
               className="btn btn-primary w-full mt-2 glow-on-hover"
               type="submit"
               disabled={
+                !hasActiveJob ||
                 busyAction === 'checkout' ||
                 cart.length === 0 ||
                 (unpaidMetrics.isOverdue && (checkoutForm.paymentMethod === 'credit' || (checkoutForm.paymentMethod === 'split' && Number(checkoutForm.splitCredit || 0) > 0))) ||
-                (checkoutForm.paymentMethod === 'split' && Math.abs(cartTotal - (Number(checkoutForm.splitCash || 0) + Number(checkoutForm.splitCard || 0) + Number(checkoutForm.splitUpi || 0) + Number(checkoutForm.splitCredit || 0))) > 0.01)
+                (checkoutForm.paymentMethod === 'split' && Math.abs(cartTotal - (Number(checkoutForm.splitCash || 0) + Number(checkoutForm.splitCard || 0) + Number(checkoutForm.splitUpi || 0) + Number(checkoutForm.splitCredit || 0))) > 0.01) ||
+                (checkoutForm.paymentMethod === 'cash' && (!checkoutForm.receivedAmount || Number(checkoutForm.receivedAmount) < cartTotal))
               }
               style={{ height: '48px', borderRadius: '14px' }}
             >

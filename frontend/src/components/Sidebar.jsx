@@ -46,6 +46,7 @@ export function Sidebar({
           { path: '/super-admin/exchange', label: 'Inventory Exchange', icon: ArrowRightLeft },
           { path: '/purchases', label: 'Purchases', icon: Receipt },
           { path: '/super-admin/returns', label: 'Returns', icon: RotateCcw },
+          { path: '/super-admin/worksheets', label: 'Daily Worksheets', icon: Wallet },
           { path: '/suppliers', label: 'Suppliers', icon: User },
           { path: '/staff', label: 'Employees', icon: Users },
         ]
@@ -58,7 +59,8 @@ export function Sidebar({
           { path: '/sales-history', label: 'Sales History', icon: Clock },
           { path: '/customers', label: 'Customers', icon: User },
           { path: '/returns', label: 'Returns', icon: RotateCcw },
-          { path: '/settlements', label: 'Settlements', icon: Wallet }
+          { path: '/settlements', label: 'Settlements', icon: Wallet },
+          { path: '/cashier-worksheets', label: 'Work Shift', icon: Clock }
         ]
       : []),
     ...(session?.user?.role === 'admin'
@@ -72,6 +74,7 @@ export function Sidebar({
           { path: '/invoices', label: 'Invoices', icon: Receipt },
           { path: '/returns', label: 'Returns', icon: RotateCcw },
           { path: '/payments', label: 'Settlements', icon: Wallet },
+          { path: '/admin/worksheets', label: 'Daily Worksheets', icon: Wallet },
           { path: '/reports', label: 'Sales Reports', icon: BarChart3 },
           { path: '/company-profile', label: 'Company Profile', icon: Building2 },
         ]

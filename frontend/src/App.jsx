@@ -6,7 +6,7 @@ import {
 } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { saveSaleOffline, syncOfflineSales, syncOfflineReturns, syncOfflineSettlements, syncOfflineCustomers, cacheLoginCredentials, attemptOfflineLogin, getOfflineCustomers, syncOfflineBranches, syncOfflineUsers } from './utils/offlineSync';
+import { saveSaleOffline, syncOfflineSales, syncOfflineReturns, syncOfflineSettlements, syncOfflineCustomers, cacheLoginCredentials, attemptOfflineLogin, getOfflineCustomers, syncOfflineBranches, syncOfflineUsers, syncOfflineShifts } from './utils/offlineSync';
 import localforage from 'localforage';
 import _BarcodeReader from 'react-barcode-reader'
 
@@ -46,6 +46,11 @@ import { BranchDetails } from './pages/super_admin/BranchDetails'
 import { SuperAdminReports } from './pages/super_admin/Reports'
 import { InventoryTransfer } from './pages/super_admin/InventoryTransfer'
 import SuperAdminReturns from './pages/super_admin/Returns'
+
+// Daily Worksheets
+import { DailyWorksheet as CashierDailyWorksheet } from './pages/cashier/DailyWorksheet'
+import { DailyWorksheets as AdminDailyWorksheets } from './pages/admin/DailyWorksheets'
+import { DailyWorksheets as SuperAdminDailyWorksheets } from './pages/super_admin/DailyWorksheets'
 
 // Utils
 import {
@@ -121,20 +126,29 @@ function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
 
   useEffect(() => {
-    syncOfflineSales()
-    syncOfflineReturns()
-    syncOfflineSettlements()
-    syncOfflineCustomers()
-    syncOfflineBranches()
-    syncOfflineUsers()
-    const handleOnline = async () => {
-      setIsOnline(true)
+    const runInitialSync = async () => {
+      await syncOfflineShifts('open')
       await syncOfflineSales()
       await syncOfflineReturns()
       await syncOfflineSettlements()
       await syncOfflineCustomers()
       await syncOfflineBranches()
       await syncOfflineUsers()
+      await syncOfflineShifts('close')
+    }
+    runInitialSync()
+    const handleOnline = async () => {
+      if (navigator.onLine) {
+        await syncOfflineShifts('open')
+        await syncOfflineSales()
+        await syncOfflineReturns()
+        await syncOfflineSettlements()
+        await syncOfflineCustomers()
+        await syncOfflineBranches()
+        await syncOfflineUsers()
+        await syncOfflineShifts('close')
+      }
+      setIsOnline(true)
       alert("Internet connection restored. Syncing offline data...")
       if (session?.token) {
         refreshCoreData()
@@ -177,8 +191,12 @@ function App() {
     loyaltyCard: '',
     paymentMethod: 'cash',
     discount: '0',
-    returnDays: 0,
+    returnDays: 7,
     notes: '',
+    splitCash: '',
+    splitCard: '',
+    splitUpi: '',
+    splitCredit: ''
   })
   const [productForm, setProductForm] = useState(emptyProductForm)
   const [editingProductId, setEditingProductId] = useState('')
@@ -817,6 +835,7 @@ function App() {
         notes: checkoutForm.notes,
         items: cart.map((item) => ({ productId: item.productId, quantity: item.quantity })),
         returnDays: Number(checkoutForm.returnDays || 0),
+        creditPeriodDays: Number(checkoutForm.creditPeriodDays || 0),
         splitPayments: splitPayments.length > 0 ? splitPayments : undefined,
         total: cartTotal,
       };
@@ -829,7 +848,7 @@ function App() {
           loyaltyCard: '',
           paymentMethod: 'cash',
           discount: '0',
-          returnDays: 0,
+          returnDays: 7,
           notes: '',
           splitCash: '',
           splitCard: '',
@@ -992,6 +1011,16 @@ function App() {
               />
             } />
 
+            <Route path="/cashier-worksheets" element={
+              <CashierDailyWorksheet
+                api={api}
+                session={session}
+                onNotice={setNotice}
+                company={company}
+                refreshCoreData={refreshCoreData}
+              />
+            } />
+
 
             <Route path="/inventory" element={
               <AdminRoute session={session}>
@@ -1096,6 +1125,12 @@ function App() {
                 />
               </AdminRoute>
             } />
+            
+            <Route path="/admin/worksheets" element={
+              <AdminRoute session={session}>
+                <AdminDailyWorksheets api={api} session={session} onNotice={setNotice} company={company} />
+              </AdminRoute>
+            } />
 
             {/* Super Admin Routes */}
             <Route path="/super-admin" element={
@@ -1121,6 +1156,11 @@ function App() {
             <Route path="/super-admin/returns" element={
               <SuperAdminRoute session={session}>
                 <SuperAdminReturns api={api} session={session} onNotice={setNotice} refreshCoreData={refreshCoreData} />
+              </SuperAdminRoute>
+            } />
+            <Route path="/super-admin/worksheets" element={
+              <SuperAdminRoute session={session}>
+                <SuperAdminDailyWorksheets api={api} session={session} onNotice={setNotice} company={company} />
               </SuperAdminRoute>
             } />
 

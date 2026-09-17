@@ -1208,6 +1208,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
               <User size={14} />
               Customer
             </button>
+            {['admin', 'super_admin'].includes(session?.user?.role) && (
             <button
               className={`btn sm ${returnMode === 'supplier' ? 'btn-primary' : 'btn-ghost'}`}
               style={{
@@ -1224,6 +1225,7 @@ export default function Returns({ api, session, onNotice, refreshCoreData }) {
               <History size={14} />
               Supplier
             </button>
+            )}
           </div>
 
           <button onClick={handleNewReturnClick} className="btn btn-primary cluster gap-2 glow-on-hover" style={{ height: '36px', borderRadius: '10px', fontSize: '0.85rem', padding: '0 16px' }}>
