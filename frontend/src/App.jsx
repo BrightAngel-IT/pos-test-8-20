@@ -810,6 +810,12 @@ function App() {
     if (cart.length === 0) return
     setBusyAction('checkout')
     try {
+      if (session?.user?.role === 'cashier' && localStorage.getItem('ims-last-known-job') !== 'true') {
+        setNotice({ type: 'error', text: 'You must Start Job before processing sales.' });
+        setBusyAction(null);
+        return;
+      }
+
       const splitPayments = [];
       if (checkoutForm.paymentMethod === 'split') {
         if (Number(checkoutForm.splitCash || 0) > 0) {

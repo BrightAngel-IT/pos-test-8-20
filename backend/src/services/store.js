@@ -720,6 +720,14 @@ async function createSale(payload) {
     throw createError('Add at least one item before checking out.');
   }
 
+  // Ensure cashier has an active shift
+  if (payload.cashier && payload.cashier.role === 'cashier') {
+    const shift = await getCurrentShift(payload.cashier._id);
+    if (!shift) {
+      throw createError('You must Start Job before processing sales.', 403);
+    }
+  }
+
   if (payload.customerId && isDatabaseReady()) {
     const customer = await Customer.findById(payload.customerId).lean();
     if (customer) {
@@ -2372,7 +2380,14 @@ async function openShift(cashierId, branchName, startTime = null) {
   if (!isDatabaseReady()) {
     if (!memoryStore.shifts) memoryStore.shifts = [];
     const existing = memoryStore.shifts.find(s => String(s.cashierId) === String(cashierId) && s.status === 'open');
-    if (existing) throw createError('You already have an active shift.', 400);
+    if (existing) {
+      if (existing.date === today) {
+        throw createError('You already have an active shift.', 400);
+      } else {
+        existing.status = 'closed';
+        existing.endTime = shiftDate;
+      }
+    }
 
     const shift = {
       _id: generateId(),
@@ -2395,7 +2410,13 @@ async function openShift(cashierId, branchName, startTime = null) {
 
   const existingShift = await Shift.findOne({ cashierId, status: 'open' });
   if (existingShift) {
-    throw createError('You already have an active shift.', 400);
+    if (existingShift.date === today) {
+      throw createError('You already have an active shift.', 400);
+    } else {
+      existingShift.status = 'closed';
+      existingShift.endTime = shiftDate;
+      await existingShift.save();
+    }
   }
 
   const shift = await Shift.create({
